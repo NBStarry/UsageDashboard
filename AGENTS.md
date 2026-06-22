@@ -2,15 +2,16 @@
 
 ## Project Structure & Module Organization
 
-UsageBar is a Swift 6 macOS menu bar app built with SwiftPM. `Package.swift` defines one executable target at `Sources/UsageBar`. Core app entry and coordination live in `App.swift`, `MenuBarController.swift`, and `UsageStore.swift`; network, credential, cache, and configuration logic live in `Http.swift`, `CredentialStore.swift`, `UsageCache.swift`, `UsageFetcher.swift`, and `AppConfigStore.swift`. SwiftUI views are grouped under `Sources/UsageBar/Views`. `AppIcon.icns` and `make_icon.swift` support app icon generation. Treat `.build/` and `UsageBar.app/` as generated artifacts.
+TokenUsageDashboard is a Swift 6 macOS menu bar app built with SwiftPM. `Package.swift` defines one executable target at `Sources/UsageBar`. Core app entry and coordination live in `App.swift`, `MenuBarController.swift`, and `UsageStore.swift`; network, credential, cache, and configuration logic live in `Http.swift`, `CredentialStore.swift`, `UsageCache.swift`, `UsageFetcher.swift`, and `AppConfigStore.swift`. SwiftUI views are grouped under `Sources/UsageBar/Views`. `AppIcon.icns` and `make_icon.swift` support app icon generation. Treat `.build/` and `*.app/` as generated artifacts.
 
 ## Build, Test, and Development Commands
 
 - `swift build`: compile the debug executable.
 - `swift build -c release`: compile the optimized release binary.
-- `./build-app.sh`: build release, assemble `UsageBar.app`, embed the icon, and ad-hoc sign the bundle.
-- `open UsageBar.app`: run the bundled menu bar app after packaging.
-- `.build/release/UsageBar --fetch claude` or `.build/release/UsageBar --fetch codex`: validate fetcher behavior without launching the GUI.
+- `./build-app.sh`: build release, assemble `TokenUsageDashboard.app`, embed the icon, and ad-hoc sign the bundle.
+- `open TokenUsageDashboard.app`: run the bundled menu bar app after packaging.
+- `.build/release/TokenUsageDashboard --fetch claude` or `.build/release/TokenUsageDashboard --fetch codex`: validate fetcher behavior without launching the GUI.
+- `.build/release/TokenUsageDashboard --render-readme`: regenerate README interface screenshots.
 - `swift test`: run SwiftPM tests once a `Tests/` target is added; no test suite is present currently.
 
 ## Coding Style & Naming Conventions
@@ -19,7 +20,7 @@ Use idiomatic Swift with 4-space indentation and descriptive type names in `Uppe
 
 ## Testing Guidelines
 
-There is no dedicated test target yet. When adding tests, create `Tests/UsageBarTests` and prefer focused unit tests around parsing, caching, configuration defaults, and fetcher error handling. Name test files after the unit under test, for example `UsageCacheTests.swift`, and test methods with behavior-focused names such as `testFallsBackToCachedUsageOnFetchFailure`.
+There is no dedicated test target yet. When adding tests, create `Tests/TokenUsageDashboardTests` and prefer focused unit tests around parsing, caching, configuration defaults, and fetcher error handling. Name test files after the unit under test, for example `UsageCacheTests.swift`, and test methods with behavior-focused names such as `testFallsBackToCachedUsageOnFetchFailure`.
 
 ## Commit & Pull Request Guidelines
 

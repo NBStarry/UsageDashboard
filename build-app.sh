@@ -1,11 +1,11 @@
 #!/bin/bash
-# 编译并组装 UsageBar.app(菜单栏 App:无 Dock 图标 + 开机自启 + ad-hoc 签名)。
+# 编译并组装 TokenUsageDashboard.app(菜单栏 App:无 Dock 图标 + 开机自启 + ad-hoc 签名)。
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
-APP_NAME="UsageBar"
-BUNDLE_ID="${BUNDLE_ID:-app.usagebar.menu}"
+APP_NAME="TokenUsageDashboard"
+BUNDLE_ID="${BUNDLE_ID:-app.tokenusagedashboard.menu}"
 VERSION="1.0.0"
 APP="${APP_NAME}.app"
 
@@ -41,7 +41,7 @@ cat > "${APP}/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key>  <string>13.0</string>
     <key>LSUIElement</key>             <true/>
 ${ICON_LINE}
-    <key>NSHumanReadableCopyright</key><string>UsageBar</string>
+    <key>NSHumanReadableCopyright</key><string>TokenUsageDashboard</string>
 </dict>
 </plist>
 PLIST

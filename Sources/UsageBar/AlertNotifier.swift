@@ -16,7 +16,7 @@ enum AlertNotifier {
         content.sound = .default
 
         let request = UNNotificationRequest(
-            identifier: "usagebar-\(UUID().uuidString)",
+            identifier: "token-usage-dashboard-\(UUID().uuidString)",
             content: content,
             trigger: nil
         )

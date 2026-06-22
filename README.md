@@ -1,7 +1,13 @@
-# UsageBar — 订阅用量菜单栏 App
+# TokenUsageDashboard — 订阅用量菜单栏 App
 
 macOS 原生菜单栏 App(Swift + SwiftUI,无 Dock 图标),实时显示订阅号和 API 渠道用量。
 取代了旧的 Übersicht 桌面看板(已移除)。
+
+## 界面预览
+
+| 用量面板 | 显示设置 |
+| --- | --- |
+| ![TokenUsageDashboard 用量面板](Docs/Images/token-usage-dashboard-popover.png) | ![TokenUsageDashboard 显示设置](Docs/Images/token-usage-dashboard-settings.png) |
 
 ## 功能
 - 菜单栏图标,点击弹出面板:每个服务一张卡,显示 5 小时 / 周窗口的进度条 + 百分比 + 重置倒计时。
@@ -66,16 +72,17 @@ New-API 兼容渠道的凭证单独放 `~/.config/usage-bar/<credentialFile>`:
 
 ## 构建与安装
 ```bash
-./build-app.sh                     # 编译 + 组装 UsageBar.app(含图标) + ad-hoc 签名
-open UsageBar.app                  # 运行
-cp -r UsageBar.app /Applications/  # 建议:开机自启需 App 在稳定路径
+./build-app.sh                              # 编译 + 组装 TokenUsageDashboard.app(含图标) + ad-hoc 签名
+open TokenUsageDashboard.app                # 运行
+cp -r TokenUsageDashboard.app /Applications/  # 建议:开机自启需 App 在稳定路径
 ```
 
 ## 调试
 无头验证取数层(不启动 GUI):
 ```bash
-.build/release/UsageBar --fetch claude
-.build/release/UsageBar --fetch codex
-.build/release/UsageBar --fetch phanrouter
-.build/release/UsageBar --fetch mygateway  # 配置中的自定义服务 id
+.build/release/TokenUsageDashboard --fetch claude
+.build/release/TokenUsageDashboard --fetch codex
+.build/release/TokenUsageDashboard --fetch phanrouter
+.build/release/TokenUsageDashboard --fetch mygateway  # 配置中的自定义服务 id
+.build/release/TokenUsageDashboard --render-readme    # 重新生成 README 界面图
 ```
