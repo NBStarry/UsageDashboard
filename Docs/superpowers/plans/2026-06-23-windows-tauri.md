@@ -21,6 +21,7 @@
 - 刷新间隔下限 60 秒；告警冷却下限 60 秒。
 - 取数失败回退上次缓存并标 ⚠；从未成功过才显示纯错误。
 - 每个任务以 `cargo test`（Rust 任务）或明确的手动验证步骤（UI/集成任务）结束，并以一次 commit 收尾。文档改动与相关代码改动放同一个 commit。
+- **crate 根是 `lib.rs`**（脚手架默认 `main.rs` 仅调用 `usage_dashboard_lib::run()`）。计划中凡写"Modify `main.rs`（`mod X;`）"或在 `main.rs` 里装配 Tauri builder/插件/命令的，**实际都应写在 `lib.rs`**。`main.rs` 保持不动。
 
 ---
 
