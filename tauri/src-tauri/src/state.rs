@@ -110,8 +110,7 @@ impl AppState {
             .collect()
     }
 
-    // Task 11 的托盘徽标会消费此计数;本任务内尚无调用方。
-    #[allow(dead_code)]
+    // 托盘徽标据此计数切换告警图标(lib.rs 的 usage-updated 监听器消费)。
     pub fn active_alert_count(&self) -> usize {
         self.active_alert_keys
             .lock()

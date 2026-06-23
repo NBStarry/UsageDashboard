@@ -12,9 +12,16 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "UsageDashboard",
-        "width": 800,
-        "height": 600
+        "width": 340,
+        "height": 560,
+        "decorations": false,
+        "resizable": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "visible": false,
+        "transparent": true
       }
     ],
     "security": {
