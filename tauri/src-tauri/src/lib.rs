@@ -1,3 +1,4 @@
+mod alerts;
 mod cache;
 mod config_store;
 mod credentials;
