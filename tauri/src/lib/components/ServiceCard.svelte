@@ -78,11 +78,11 @@
           {/each}
         </div>
       {/if}
-      {#if display.updatedAt}
-        <div class="footer-ok">
-          <span class="foot-gray" style="font-size: 10px;">更新于 {hm(status.fetchedAt)}</span>
-        </div>
-      {/if}
+    {/if}
+    {#if display.updatedAt}
+      <div class="footer-ok">
+        <span class="foot-gray" style="font-size: 10px;">更新于 {hm(status.fetchedAt)}</span>
+      </div>
     {/if}
 
   {:else if status.kind === 'stale'}
