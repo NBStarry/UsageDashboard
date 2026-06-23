@@ -94,7 +94,7 @@ To add a New-API gateway, append a service entry to `config.json` and create the
 
 ### Cache directory
 
-`%LOCALAPPDATA%\usage-bar\cache\` — last-known-good API responses, used as fallback when a fetch fails.
+`%LOCALAPPDATA%\usage-dashboard\` — last-known-good API responses (`<service-id>.json`), used as fallback when a fetch fails.
 
 ## Differences vs the macOS Swift Version
 
@@ -115,6 +115,7 @@ Functional parity: same three-counter fetch logic, same alert rules (`usageExcee
 ## Tests
 
 ```powershell
+# From the tauri/ directory
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
