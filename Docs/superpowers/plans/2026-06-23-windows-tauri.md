@@ -23,6 +23,7 @@
 - 每个任务以 `cargo test`（Rust 任务）或明确的手动验证步骤（UI/集成任务）结束，并以一次 commit 收尾。文档改动与相关代码改动放同一个 commit。
 - **crate 根是 `lib.rs`**（脚手架默认 `main.rs` 仅调用 `usage_dashboard_lib::run()`）。计划中凡写"Modify `main.rs`（`mod X;`）"或在 `main.rs` 里装配 Tauri builder/插件/命令的，**实际都应写在 `lib.rs`**。`main.rs` 保持不动。
 - **测试隔离**：凡设置/读取进程级环境变量 `USAGE_DASHBOARD_HOME` 的测试（Task 3/4/5/6/10）必须用 `serial_test` 串行化——加 `#[serial]`（`use serial_test::serial;`），否则 cargo 默认多线程并行会让这些测试竞争同一环境变量而 flaky。`serial_test = "3"` 由 Task 3 首次加入 dev-dependencies；每个用例结束务必 `remove_var` 清理。
+- **pristine 输出**：Phase 1 自底向上构建，新模块在被 Task 10/11 接入前其 pub 项会触发 dead_code 警告。每个新 Rust 模块（config_store/cache/credentials/http/fetchers/alerts）在文件顶部加临时 `#![allow(dead_code)]` 以保持 `cargo build`/`cargo test` 零警告；Task 10/11 接入后或最终审查时统一移除这些临时 allow。
 
 ---
 
