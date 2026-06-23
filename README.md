@@ -66,6 +66,13 @@ New-API 兼容渠道的凭证单独放 `~/.config/usage-bar/<credentialFile>`:
 ```
 再创建 `~/.config/usage-bar/mygateway.json`。订阅号接口差异较大,新增订阅号通常需要在代码里添加一个专用 `UsageFetcher`,但 UI 卡片可复用 `subscription` 类型。
 
+## Windows 版（Tauri）
+
+Windows 系统托盘版使用 Tauri 2 + SvelteKit + Rust 实现，与 macOS Swift 版功能对等。
+源码位于 [`tauri/`](tauri/) 目录，构建产物为 NSIS 安装包（`.exe`）。
+
+详见 [tauri/README.md](tauri/README.md)，涵盖：开发启动、发布构建、配置/凭证路径（`%APPDATA%\usage-bar\`、`%USERPROFILE%\.claude\.credentials.json` 等）以及与本 macOS 版的差异说明。
+
 ## 图标
 `AppIcon.icns` 由项目根的源图生成,`build-app.sh` 会自动嵌入 bundle。
 重做图标:改 `make_icon.swift` 风格脚本 → 生成 1024 PNG → `sips` 切尺寸 → `iconutil -c icns`。
