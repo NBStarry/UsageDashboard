@@ -29,13 +29,15 @@
 ```
 tauri/
 ├── package.json                      # 前端 + tauri CLI 脚本
-├── vite.config.ts
+├── svelte.config.js                  # SvelteKit + adapter-static (SPA)
+├── vite.config.js
 ├── tsconfig.json
-├── index.html
-├── src/                              # Svelte + TS 前端
-│   ├── main.ts                       # 挂载入口
-│   ├── App.svelte                    # popover 根（header + 卡片列表 + footer / 设置切换）
-│   ├── lib/
+├── src/                              # SvelteKit 前端（官方 svelte-ts 模板）
+│   ├── app.html                      # HTML 壳
+│   ├── routes/
+│   │   ├── +layout.ts                # export const ssr = false（SPA 模式）
+│   │   └── +page.svelte              # popover 根（header + 卡片列表 + footer / 设置切换）
+│   ├── lib/                          # 用 $lib 别名导入（$lib → src/lib）
 │   │   ├── types.ts                  # 与 Rust JSON 对齐的 TS 类型
 │   │   ├── api.ts                    # invoke 封装 + 事件监听
 │   │   ├── store.ts                  # Svelte store：config + states + lastUpdated
@@ -1058,6 +1060,10 @@ git commit -m "Add tray icon, popover window, autostart and background refresh"
   - `store.ts`：Svelte writable `snapshots`、`config`、`lastUpdated`、`isRefreshing`；`init()` 拉取初值 + 注册事件监听刷新 store。
   - `theme.ts`：`barColor(pct)`（阈值色）、`hm(date)`、`resetCountdown(isoOrDate)`、accent 直接用字符串。
 
+- [ ] **Step 0：安装依赖并清理脚手架残留**
+
+先 `cd tauri && npm install`。从 `package.json` 移除脚手架遗留的未用依赖 `@tauri-apps/plugin-opener`（Rust 端与 capabilities 已不再用它），重新 `npm install` 同步 lockfile。文件内导入统一用 SvelteKit 的 `$lib` 别名（如 `import { barColor } from '$lib/theme'`）。
+
 - [ ] **Step 1：实现四个文件**
 
 `barColor`：`pct>=90 → #F85149`，`>=75 → #D29922`，else `#3FB950`。`resetCountdown`：`重置 Xh Ym 后` / `重置 Ym 后`。
@@ -1132,19 +1138,21 @@ git commit -m "Add settings view with alerts and per-service display options"
 
 ---
 
-### Task 15：根面板组装（App.svelte）
+### Task 15：根面板组装（+page.svelte）
 
 **Files:**
-- Modify: `tauri/src/App.svelte`, `tauri/src/main.ts`
+- Modify: `tauri/src/routes/+page.svelte`（替换脚手架默认 demo 内容）
 - 验证：`npm run tauri dev`（Windows，端到端）
+
+> 注：SvelteKit 模板下根视图是 `src/routes/+page.svelte`（无 `src/App.svelte` / `src/main.ts` / `index.html`）；SPA 由 `+layout.ts` 的 `export const ssr = false` 保证。组件从 `$lib/components/...` 导入。
 
 **Interfaces:**
 - Consumes: store、所有组件
 - Produces: header（仪表盘图标 + 标题"订阅用量"/"显示设置" + 设置/完成切换按钮）；正文 settings 时显示 `SettingsView`，否则卡片列表（空态"未选择任何渠道商"）+ footer（更新于 HH:mm + 刷新按钮[isRefreshing 转圈] + 退出按钮）；整体深色半透明背景，宽度 320（设置 360）。`onMount` 调 `store.init()`。
 
-- [ ] **Step 1：实现 App.svelte**
+- [ ] **Step 1：实现 +page.svelte**
 
-复刻 `PopoverRootView` 布局与文案；刷新按钮调 `refreshNow()`，退出按钮调 `quit()`。
+复刻 `PopoverRootView` 布局与文案；刷新按钮调 `refreshNow()`，退出按钮调 `quit()`。删除脚手架自带的 greet demo 代码。
 
 - [ ] **Step 2：端到端手动验证（Windows，需真实凭证）**
 
@@ -1161,7 +1169,7 @@ Expected（逐项确认并截图）：
 - [ ] **Step 3：Commit**
 
 ```bash
-git add tauri/src/App.svelte tauri/src/main.ts
+git add tauri/src/routes/+page.svelte
 git commit -m "Assemble popover root view with header, cards and footer"
 ```
 
