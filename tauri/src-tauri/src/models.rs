@@ -1,0 +1,415 @@
+// 数据模型层:由后续任务(配置加载、取数、Tauri 命令、前端)逐步接入。
+// 在消费方落地前,这些类型在本 crate 内尚无引用,故整体放开 dead_code。
+#![allow(dead_code)]
+
+use std::cmp::Ordering;
+use std::collections::HashMap;
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+
+// 计费展示大类:订阅窗口型 vs API 余额/用量型。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BillingCategory {
+    Subscription,
+    ApiUsage,
+}
+
+// 取数协议。新增渠道时优先复用 newAPI;特殊订阅号再新增具体 fetcher。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FetcherKind {
+    ClaudeOauth,
+    CodexWham,
+    #[serde(rename = "newAPI")]
+    NewApi,
+    Unsupported,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UsageAlertRule {
+    UsageExceedsElapsedWindowPercent,
+    UsageExceedsThresholdOnly,
+}
+
+// ---- 配置默认值 ----
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_minimum_usage_percent() -> f64 {
+    60.0
+}
+
+fn default_alert_rule() -> UsageAlertRule {
+    UsageAlertRule::UsageExceedsElapsedWindowPercent
+}
+
+fn default_pace_multiplier() -> f64 {
+    1.0
+}
+
+fn default_cooldown_seconds() -> i64 {
+    1800
+}
+
+fn default_refresh_seconds() -> i64 {
+    300
+}
+
+fn default_accent() -> String {
+    "#8E8E93".to_string()
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageAlertConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_minimum_usage_percent")]
+    pub minimum_usage_percent: f64,
+    #[serde(default = "default_alert_rule")]
+    pub rule: UsageAlertRule,
+    #[serde(default = "default_pace_multiplier")]
+    pub pace_multiplier: f64,
+    #[serde(default = "default_cooldown_seconds")]
+    pub cooldown_seconds: i64,
+    #[serde(default)]
+    pub service_ids: Option<Vec<String>>,
+    #[serde(default)]
+    pub windows: Option<Vec<String>>,
+}
+
+impl Default for UsageAlertConfig {
+    fn default() -> Self {
+        UsageAlertConfig {
+            enabled: default_true(),
+            minimum_usage_percent: default_minimum_usage_percent(),
+            rule: default_alert_rule(),
+            pace_multiplier: default_pace_multiplier(),
+            cooldown_seconds: default_cooldown_seconds(),
+            service_ids: None,
+            windows: None,
+        }
+    }
+}
+
+// 卡片可单独控制的展示内容,缺省全开。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceDisplayOptions {
+    #[serde(default = "default_true")]
+    pub plan: bool,
+    #[serde(default = "default_true")]
+    pub five_hour: bool,
+    #[serde(default = "default_true")]
+    pub weekly: bool,
+    #[serde(default = "default_true")]
+    pub reset_countdown: bool,
+    #[serde(default = "default_true")]
+    pub updated_at: bool,
+    #[serde(default = "default_true")]
+    pub balance: bool,
+    #[serde(default = "default_true")]
+    pub used: bool,
+    #[serde(default = "default_true")]
+    pub request_count: bool,
+    #[serde(default = "default_true")]
+    pub models: bool,
+}
+
+impl Default for ServiceDisplayOptions {
+    fn default() -> Self {
+        ServiceDisplayOptions {
+            plan: true,
+            five_hour: true,
+            weekly: true,
+            reset_countdown: true,
+            updated_at: true,
+            balance: true,
+            used: true,
+            request_count: true,
+            models: true,
+        }
+    }
+}
+
+fn default_category(id: &str) -> BillingCategory {
+    match id {
+        "claude" | "codex" => BillingCategory::Subscription,
+        _ => BillingCategory::ApiUsage,
+    }
+}
+
+fn default_fetcher(id: &str, category: BillingCategory) -> FetcherKind {
+    match id {
+        "claude" => FetcherKind::ClaudeOauth,
+        "codex" => FetcherKind::CodexWham,
+        _ => {
+            if category == BillingCategory::ApiUsage {
+                FetcherKind::NewApi
+            } else {
+                FetcherKind::Unsupported
+            }
+        }
+    }
+}
+
+// 单个服务的配置(由 config.json 控制显示/顺序/颜色/内容项)。
+// 缺省时按 id 推断 category/fetcher,accent 缺省 #8E8E93。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", from = "RawServiceConfig")]
+pub struct ServiceConfig {
+    pub id: String,
+    pub title: String,
+    pub accent: String,
+    pub category: BillingCategory,
+    pub fetcher: FetcherKind,
+    pub credential_file: Option<String>,
+    pub enabled: bool,
+    pub display: ServiceDisplayOptions,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawServiceConfig {
+    id: String,
+    title: String,
+    #[serde(default = "default_accent")]
+    accent: String,
+    #[serde(default)]
+    category: Option<BillingCategory>,
+    #[serde(default)]
+    fetcher: Option<FetcherKind>,
+    #[serde(default)]
+    credential_file: Option<String>,
+    #[serde(default = "default_true")]
+    enabled: bool,
+    #[serde(default)]
+    display: ServiceDisplayOptions,
+}
+
+impl From<RawServiceConfig> for ServiceConfig {
+    fn from(raw: RawServiceConfig) -> Self {
+        let category = raw.category.unwrap_or_else(|| default_category(&raw.id));
+        let fetcher = raw
+            .fetcher
+            .unwrap_or_else(|| default_fetcher(&raw.id, category));
+        ServiceConfig {
+            id: raw.id,
+            title: raw.title,
+            accent: raw.accent,
+            category,
+            fetcher,
+            credential_file: raw.credential_file,
+            enabled: raw.enabled,
+            display: raw.display,
+        }
+    }
+}
+
+impl ServiceConfig {
+    fn new(
+        id: &str,
+        title: &str,
+        accent: &str,
+        category: BillingCategory,
+        fetcher: FetcherKind,
+        credential_file: Option<&str>,
+    ) -> Self {
+        ServiceConfig {
+            id: id.to_string(),
+            title: title.to_string(),
+            accent: accent.to_string(),
+            category,
+            fetcher,
+            credential_file: credential_file.map(|s| s.to_string()),
+            enabled: true,
+            display: ServiceDisplayOptions::default(),
+        }
+    }
+}
+
+// 整体配置。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", from = "RawAppConfig")]
+pub struct AppConfig {
+    pub refresh_seconds: i64,
+    pub alerts: UsageAlertConfig,
+    pub services: Vec<ServiceConfig>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawAppConfig {
+    #[serde(default = "default_refresh_seconds")]
+    refresh_seconds: i64,
+    #[serde(default)]
+    alerts: UsageAlertConfig,
+    #[serde(default)]
+    services: Option<Vec<ServiceConfig>>,
+}
+
+impl From<RawAppConfig> for AppConfig {
+    fn from(raw: RawAppConfig) -> Self {
+        AppConfig {
+            refresh_seconds: raw.refresh_seconds,
+            alerts: raw.alerts,
+            services: raw
+                .services
+                .unwrap_or_else(|| AppConfig::default().services),
+        }
+    }
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        AppConfig {
+            refresh_seconds: 300,
+            alerts: UsageAlertConfig::default(),
+            services: vec![
+                ServiceConfig::new(
+                    "claude",
+                    "Claude",
+                    "#D97757",
+                    BillingCategory::Subscription,
+                    FetcherKind::ClaudeOauth,
+                    None,
+                ),
+                ServiceConfig::new(
+                    "codex",
+                    "GPT",
+                    "#10A37F",
+                    BillingCategory::Subscription,
+                    FetcherKind::CodexWham,
+                    None,
+                ),
+                ServiceConfig::new(
+                    "phanrouter",
+                    "PhanRouter",
+                    "#7C5CFC",
+                    BillingCategory::ApiUsage,
+                    FetcherKind::NewApi,
+                    Some("phanrouter.json"),
+                ),
+            ],
+        }
+    }
+}
+
+// ---- 运行态(供前端消费) ----
+
+// 归一化后的单个用量窗口(5 小时 / 周)。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageWindow {
+    pub label: String,
+    pub pct: f64,
+    pub reset_at: Option<DateTime<Utc>>,
+}
+
+// 模型广场里的一个模型(用于按来源/厂商分类展示)。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelEntry {
+    pub name: String,
+    pub vendor: String,
+}
+
+// 余额型服务(PhanRouter 等 New-API 网关)的归一化数据。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BalanceInfo {
+    pub balance: f64,
+    pub used: f64,
+    pub currency: String,
+    pub request_count: Option<i64>,
+    pub models: Vec<ModelEntry>,
+}
+
+impl BalanceInfo {
+    // 按来源分组,组内按名称升序,组按 (模型数, vendor) 降序——对齐 Swift groupedModels。
+    pub fn grouped_models(&self) -> Vec<(String, Vec<ModelEntry>)> {
+        let mut groups: HashMap<String, Vec<ModelEntry>> = HashMap::new();
+        for m in &self.models {
+            groups.entry(m.vendor.clone()).or_default().push(m.clone());
+        }
+        let mut grouped: Vec<(String, Vec<ModelEntry>)> = groups
+            .into_iter()
+            .map(|(vendor, mut models)| {
+                models.sort_by(|a, b| a.name.cmp(&b.name));
+                (vendor, models)
+            })
+            .collect();
+        // Swift: ($0.count, $1.vendor) > ($1.count, $0.vendor)
+        // 即先按模型数降序;数量相等时,组内顺序对齐 Swift 的元组比较语义。
+        grouped.sort_by(|a, b| match b.1.len().cmp(&a.1.len()) {
+            Ordering::Equal => a.0.cmp(&b.0),
+            other => other,
+        });
+        grouped
+    }
+}
+
+// 一个服务的归一化用量。windows 用于用量窗口型(Claude/GPT),balance 用于余额型(PhanRouter)。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Usage {
+    pub plan: Option<String>,
+    pub windows: Vec<UsageWindow>,
+    pub balance: Option<BalanceInfo>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_has_three_services() {
+        let c = AppConfig::default();
+        assert_eq!(c.refresh_seconds, 300);
+        let ids: Vec<_> = c.services.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, ["claude", "codex", "phanrouter"]);
+        assert_eq!(c.services[2].fetcher, FetcherKind::NewApi);
+        assert_eq!(c.services[2].credential_file.as_deref(), Some("phanrouter.json"));
+        assert_eq!(c.alerts.minimum_usage_percent, 60.0);
+    }
+
+    #[test]
+    fn service_config_infers_defaults_from_id() {
+        let json = serde_json::json!({"id":"claude","title":"Claude"});
+        let s: ServiceConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(s.accent, "#8E8E93");
+        assert_eq!(s.category, BillingCategory::Subscription);
+        assert_eq!(s.fetcher, FetcherKind::ClaudeOauth);
+        assert!(s.enabled);
+        assert!(s.display.five_hour);
+    }
+
+    #[test]
+    fn alert_config_fills_missing_fields() {
+        let a: UsageAlertConfig = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(a.enabled);
+        assert_eq!(a.cooldown_seconds, 1800);
+        assert_eq!(a.rule, UsageAlertRule::UsageExceedsElapsedWindowPercent);
+    }
+
+    #[test]
+    fn grouped_models_sorts_by_count_then_vendor() {
+        let info = BalanceInfo {
+            balance: 0.0, used: 0.0, currency: "$".into(), request_count: None,
+            models: vec![
+                ModelEntry { name: "b".into(), vendor: "OpenAI".into() },
+                ModelEntry { name: "a".into(), vendor: "OpenAI".into() },
+                ModelEntry { name: "c".into(), vendor: "Google".into() },
+            ],
+        };
+        let g = info.grouped_models();
+        assert_eq!(g[0].0, "OpenAI");
+        assert_eq!(g[0].1.iter().map(|m| m.name.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+        assert_eq!(g[1].0, "Google");
+    }
+}
