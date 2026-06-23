@@ -188,7 +188,7 @@
                 class="category-badge"
                 style="color: rgba(255,255,255,{isEnabled ? 0.72 : 0.38});"
               >
-                {cfg.category === 'subscription' ? '订阅' : 'API'}
+                {cfg.category === 'subscription' ? '订阅号' : 'API 用量'}
               </span>
             </label>
 
