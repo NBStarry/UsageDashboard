@@ -1,3 +1,4 @@
+mod cache;
 mod config_store;
 mod models;
 mod paths;
