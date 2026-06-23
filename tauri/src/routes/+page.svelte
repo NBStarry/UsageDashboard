@@ -1,156 +1,237 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from 'svelte';
+  import { snapshots, lastUpdated, isRefreshing, init } from '$lib/store';
+  import { refreshNow, quit } from '$lib/api';
+  import { hm } from '$lib/theme';
+  import ServiceCard from '$lib/components/ServiceCard.svelte';
+  import SettingsView from '$lib/components/SettingsView.svelte';
 
-  let name = $state("");
-  let greetMsg = $state("");
+  let showingSettings = $state(false);
 
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
+  onMount(() => {
+    init();
+  });
+
+  function toggleSettings() {
+    showingSettings = !showingSettings;
+  }
+
+  async function onRefresh() {
+    await refreshNow();
+  }
+
+  async function onQuit() {
+    await quit();
   }
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
-
-  <div class="row">
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
+<div class="root" style="width: {showingSettings ? 360 : 320}px;">
+  <!-- Header: gauge icon + title + settings toggle -->
+  <div class="header">
+    <span class="gauge-icon">◎</span>
+    <span class="title">{showingSettings ? '显示设置' : '订阅用量'}</span>
+    <button class="settings-btn" onclick={toggleSettings}>
+      {#if showingSettings}
+        <span class="btn-icon">✓</span>完成
+      {:else}
+        <span class="btn-icon">⚙</span>设置
+      {/if}
+    </button>
   </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
 
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
-</main>
+  <!-- Body -->
+  {#if showingSettings}
+    <SettingsView />
+  {:else}
+    <div class="card-list">
+      {#if $snapshots.length === 0}
+        <span class="empty-state">未选择任何渠道商</span>
+      {:else}
+        {#each $snapshots as snapshot (snapshot.config.id)}
+          <ServiceCard {snapshot} />
+        {/each}
+      {/if}
+    </div>
+
+    <!-- Footer: last updated + refresh + quit -->
+    <div class="footer">
+      {#if $lastUpdated}
+        <span class="updated-at">更新于 {hm($lastUpdated)}</span>
+      {/if}
+      <div class="footer-actions">
+        <button
+          class="action-btn"
+          disabled={$isRefreshing}
+          onclick={onRefresh}
+        >
+          {#if $isRefreshing}
+            <span class="spinner"></span>刷新中
+          {:else}
+            ↻ 刷新
+          {/if}
+        </button>
+        <button class="quit-btn" onclick={onQuit} title="退出">⏻</button>
+      </div>
+    </div>
+  {/if}
+</div>
 
 <style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
-
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
+:global(*, *::before, *::after) {
+  box-sizing: border-box;
   margin: 0;
-  padding-top: 10vh;
+  padding: 0;
+}
+
+:global(body) {
+  background: transparent;
+  font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+.root {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  text-align: center;
+  gap: 12px;
+  padding: 16px;
+  min-height: 100vh;
+  background: rgba(20, 20, 22, 0.92);
+  transition: width 0.16s ease-in-out;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
+/* Header */
+.header {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  gap: 8px;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+.gauge-icon {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  flex-shrink: 0;
+  line-height: 1;
 }
 
-a:hover {
-  color: #535bf2;
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  flex: 1;
 }
 
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
+.settings-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 9999px;
   cursor: pointer;
+  transition: background 0.12s;
 }
 
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
+.settings-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
 }
 
-input,
-button {
-  outline: none;
+.btn-icon {
+  font-size: 11px;
+  font-weight: 600;
 }
 
-#greet-input {
-  margin-right: 5px;
+/* Card list */
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
+.empty-state {
+  font-size: 12px;
+  color: #8E8E93;
+  padding: 8px 0;
 }
 
+/* Footer */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.updated-at {
+  font-size: 10px;
+  color: #6E6E73;
+  flex: 1;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.action-btn:not(:disabled):hover {
+  opacity: 0.75;
+}
+
+.quit-btn {
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8E8E93;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.12s;
+  line-height: 1;
+}
+
+.quit-btn:hover {
+  opacity: 0.7;
+}
+
+/* Spinner for refresh */
+.spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 </style>
