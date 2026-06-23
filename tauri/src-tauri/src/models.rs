@@ -1,9 +1,4 @@
 // 数据模型层:由后续任务(配置加载、取数、Tauri 命令、前端)逐步接入。
-// 在消费方落地前,这些类型在本 crate 内尚无引用,故整体放开 dead_code。
-#![allow(dead_code)]
-
-use std::cmp::Ordering;
-use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -330,30 +325,6 @@ pub struct BalanceInfo {
     pub models: Vec<ModelEntry>,
 }
 
-impl BalanceInfo {
-    // 按来源分组,组内按名称升序,组按 (模型数, vendor) 降序——对齐 Swift groupedModels。
-    pub fn grouped_models(&self) -> Vec<(String, Vec<ModelEntry>)> {
-        let mut groups: HashMap<String, Vec<ModelEntry>> = HashMap::new();
-        for m in &self.models {
-            groups.entry(m.vendor.clone()).or_default().push(m.clone());
-        }
-        let mut grouped: Vec<(String, Vec<ModelEntry>)> = groups
-            .into_iter()
-            .map(|(vendor, mut models)| {
-                models.sort_by(|a, b| a.name.cmp(&b.name));
-                (vendor, models)
-            })
-            .collect();
-        // Swift: ($0.count, $1.vendor) > ($1.count, $0.vendor)
-        // 即先按模型数降序;数量相等时,组内顺序对齐 Swift 的元组比较语义。
-        grouped.sort_by(|a, b| match b.1.len().cmp(&a.1.len()) {
-            Ordering::Equal => a.0.cmp(&b.0),
-            other => other,
-        });
-        grouped
-    }
-}
-
 // 一个服务的归一化用量。windows 用于用量窗口型(Claude/GPT),balance 用于余额型(PhanRouter)。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -397,19 +368,4 @@ mod tests {
         assert_eq!(a.rule, UsageAlertRule::UsageExceedsElapsedWindowPercent);
     }
 
-    #[test]
-    fn grouped_models_sorts_by_count_then_vendor() {
-        let info = BalanceInfo {
-            balance: 0.0, used: 0.0, currency: "$".into(), request_count: None,
-            models: vec![
-                ModelEntry { name: "b".into(), vendor: "OpenAI".into() },
-                ModelEntry { name: "a".into(), vendor: "OpenAI".into() },
-                ModelEntry { name: "c".into(), vendor: "Google".into() },
-            ],
-        };
-        let g = info.grouped_models();
-        assert_eq!(g[0].0, "OpenAI");
-        assert_eq!(g[0].1.iter().map(|m| m.name.as_str()).collect::<Vec<_>>(), ["a", "b"]);
-        assert_eq!(g[1].0, "Google");
-    }
 }

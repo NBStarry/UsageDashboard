@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde_json::Value;
 use std::fs;

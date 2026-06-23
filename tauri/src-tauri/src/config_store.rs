@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::models::AppConfig;
 use crate::paths;
 use std::fs;

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 // 取数器与解析层。逐字移植 Sources/UsageBar/UsageFetcher.swift 的解析逻辑。
 // 纯解析函数(parse_*/infer_vendor/日期辅助)不打网络,可单测;
 // fetch_service 负责取凭证 + 调 http::get_json + 调对应 parse 函数。
