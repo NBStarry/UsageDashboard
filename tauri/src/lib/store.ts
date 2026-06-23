@@ -27,20 +27,19 @@ async function refreshConfig(): Promise<void> {
 // init() should be called once from the root layout on mount.
 // Fetches initial state then registers event listeners for live updates.
 export async function init(): Promise<void> {
+  // Register listeners FIRST so the backend's startup-refresh emit isn't missed
+  // (the Rust first refresh can complete before the initial fetch below resolves).
+  await onUsageUpdated(async () => {
+    await refreshSnapshots();
+  });
+  await onConfigUpdated(async () => {
+    await refreshConfig();
+  });
+
   isRefreshing.set(true);
   try {
     await Promise.all([refreshSnapshots(), refreshConfig()]);
   } finally {
     isRefreshing.set(false);
   }
-
-  // Re-fetch snapshots whenever Rust emits "usage-updated".
-  await onUsageUpdated(async () => {
-    await refreshSnapshots();
-  });
-
-  // Re-fetch config whenever Rust emits "config-updated".
-  await onConfigUpdated(async () => {
-    await refreshConfig();
-  });
 }

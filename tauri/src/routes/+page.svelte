@@ -25,7 +25,7 @@
   }
 </script>
 
-<div class="root" style="width: {showingSettings ? 360 : 320}px;">
+<div class="root">
   <!-- Header: gauge icon + title + settings toggle -->
   <div class="header">
     <span class="gauge-icon">◎</span>
@@ -83,8 +83,8 @@
   padding: 0;
 }
 
-:global(body) {
-  background: transparent;
+:global(html, body) {
+  background: #141416;
   font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
   font-size: 13px;
   line-height: 1.4;
@@ -96,9 +96,11 @@
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  min-height: 100vh;
-  background: rgba(20, 20, 22, 0.92);
-  transition: width 0.16s ease-in-out;
+  width: 100%;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #141416;
 }
 
 /* Header */

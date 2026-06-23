@@ -14,14 +14,14 @@
       {
         "label": "main",
         "title": "UsageDashboard",
-        "width": 340,
-        "height": 560,
+        "width": 360,
+        "height": 600,
         "decorations": false,
         "resizable": false,
         "skipTaskbar": true,
         "alwaysOnTop": true,
         "visible": false,
-        "transparent": true
+        "transparent": false
       }
     ],
     "security": {
