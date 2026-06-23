@@ -1,6 +1,7 @@
 mod cache;
 mod config_store;
 mod credentials;
+mod fetchers;
 mod http;
 mod models;
 mod paths;
