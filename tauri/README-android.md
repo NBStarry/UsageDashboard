@@ -161,8 +161,18 @@ PhanRouter 卡片正常显示真实余额/消耗/请求数/模型,设置页可�
 
 ## 6. 待办（接着做）
 
-- **Claude / Codex 手机端凭证**：二者读 `~/.claude/.credentials.json`、`~/.codex/auth.json`
-  （桌面 CLI 登录写入),手机沙盒里没有,卡片显示"未找到凭证"。需仿 New-API 的录入表单,
-  给 Claude(OAuth accessToken)和 Codex(access_token + account_id)加 app 内录入,
-  写进沙盒对应路径(`home_dir()/.claude/...`、`home_dir()/.codex/...`,现已指向可写沙盒)。
+- ~~**Claude / Codex 手机端凭证录入**~~（已做）：设置页对 `claudeOauth`、`codexWham`
+  服务也提供"凭证录入"表单（**仅移动端**——桌面端这两个文件由 CLI 维护,录入会覆盖,
+  故 UI 隐藏且命令带 `cfg!(mobile)` 守卫）。Claude 填 accessToken,Codex 填
+  access_token + account_id。后端 `save_claude_credentials` / `save_codex_credentials`
+  写进 `home_dir()/.claude/.credentials.json`、`home_dir()/.codex/auth.json`（沙盒可写路径）,
+  结构对齐 `credentials.rs` 的读取。已验证:保存成功、fetcher 读到并发起请求。
+
+  > **网络前提**：Claude(`api.anthropic.com`)、Codex(`chatgpt.com`)在国内被墙——
+  > 模拟器/国内直连会 403 或连接失败（已验证同一 token 在通畅网络下返回真实用量）。
+  > **真机用 VPN**（Clash for Android 等,系统级、对 app 透明)即可正常拉取;reqwest
+  > **不走 HTTP 代理**,模拟器 `-http-proxy` 无效(反而会断网)。若要支持"代理模式",
+  > 需给 `http.rs` 的 reqwest client 加显式 proxy 配置(暂未做)。PhanRouter 走国内可达
+  > 域名,无需 VPN。
+
 - Phase 3：Android 原生主屏小组件（App Widget，读共享存储中的用量快照）。

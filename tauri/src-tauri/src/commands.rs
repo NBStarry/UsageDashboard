@@ -184,6 +184,58 @@ pub fn save_new_api_credentials(
     Ok(())
 }
 
+// 手机端录入 Claude OAuth accessToken,写入 home_dir()/.claude/.credentials.json
+// (结构对齐 credentials::claude_token 读取的 claudeAiOauth.accessToken)。
+// 仅移动端使用:桌面端该文件由 Claude Code CLI 维护,不应被覆盖。
+#[tauri::command]
+pub fn save_claude_credentials(
+    _state: State<'_, AppState>,
+    access_token: String,
+) -> Result<(), String> {
+    // 防护:仅移动端。桌面端 home_dir() 是真实主目录,写入会覆盖 Claude Code CLI 的凭证。
+    if !cfg!(mobile) {
+        return Err("仅移动端支持 app 内录入 Claude 凭证".to_string());
+    }
+    let tok = access_token.trim();
+    if tok.is_empty() {
+        return Err("accessToken 不能为空".to_string());
+    }
+    let home = crate::paths::home_dir().ok_or("无法定位主目录")?;
+    let dir = home.join(".claude");
+    fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败:{}", e))?;
+    let json = serde_json::json!({ "claudeAiOauth": { "accessToken": tok } });
+    fs::write(dir.join(".credentials.json"), json.to_string())
+        .map_err(|e| format!("写入凭证失败:{}", e))?;
+    Ok(())
+}
+
+// 手机端录入 Codex/GPT 凭证,写入 home_dir()/.codex/auth.json
+// (结构对齐 credentials::codex_creds 读取的 tokens.access_token / tokens.account_id)。
+// 仅移动端使用:桌面端该文件由 Codex CLI 维护。
+#[tauri::command]
+pub fn save_codex_credentials(
+    _state: State<'_, AppState>,
+    access_token: String,
+    account_id: String,
+) -> Result<(), String> {
+    // 防护:仅移动端。桌面端 home_dir() 是真实主目录,写入会覆盖 Codex CLI 的凭证。
+    if !cfg!(mobile) {
+        return Err("仅移动端支持 app 内录入 Codex 凭证".to_string());
+    }
+    let tok = access_token.trim();
+    let acc = account_id.trim();
+    if tok.is_empty() || acc.is_empty() {
+        return Err("access_token 和 account_id 均必填".to_string());
+    }
+    let home = crate::paths::home_dir().ok_or("无法定位主目录")?;
+    let dir = home.join(".codex");
+    fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败:{}", e))?;
+    let json = serde_json::json!({ "tokens": { "access_token": tok, "account_id": acc } });
+    fs::write(dir.join("auth.json"), json.to_string())
+        .map_err(|e| format!("写入凭证失败:{}", e))?;
+    Ok(())
+}
+
 // 前端据此切换移动端布局(隐藏 quit、安全区 padding)。
 // cfg!(mobile) 由 tauri-build 注入,Android/iOS 为 true,桌面为 false。
 #[tauri::command]

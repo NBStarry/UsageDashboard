@@ -9,9 +9,11 @@
     moveService,
     setDisplayContent,
     saveNewApiCredentials,
+    saveClaudeCredentials,
+    saveCodexCredentials,
     refreshNow,
   } from '$lib/api';
-  import type { BillingCategory, ServiceConfig, UsageAlertRule } from '$lib/types';
+  import type { BillingCategory, FetcherKind, ServiceConfig, UsageAlertRule } from '$lib/types';
 
   // Display option definitions per category, matching DisplayContent.options(for:) in Swift
   interface DisplayOption {
@@ -88,13 +90,17 @@
     return d[key] ?? false;
   }
 
-  // --- New-API 凭证录入 ---
-  // 移动端无法把 JSON 文件丢进 config 目录,只能 app 内录入。桌面端也可用。
-  // 表单按服务 id 维护;不预填(后端不暴露读凭证命令,accessToken 敏感)。
+  // --- 凭证 app 内录入 ---
+  // 手机沙盒里没有桌面 CLI 写的凭证文件,只能 app 内录入。表单按服务 id 维护;
+  // 不预填(后端不暴露读凭证命令,token 敏感)。支持三种 fetcher:
+  //   newAPI(baseUrl/accessToken/userId/quotaPerUnit/currency)— 桌面+移动;
+  //   claudeOauth(accessToken)、codexWham(accessToken/accountId)— 仅移动端
+  //   (桌面端这两个文件由 Claude Code / Codex CLI 维护,录入会覆盖,故不显示)。
   interface CredForm {
     open: boolean;
     baseUrl: string;
     accessToken: string;
+    accountId: string;
     userId: string;
     quotaPerUnit: string;
     currency: string;
@@ -103,16 +109,33 @@
     ok: boolean;
   }
 
+  // 哪些 fetcher 支持 app 内录入,以及是否仅限移动端。
+  function credInputKind(fetcher: FetcherKind): 'newAPI' | 'claude' | 'codex' | null {
+    if (fetcher === 'newAPI') return 'newAPI';
+    if (fetcher === 'claudeOauth') return 'claude';
+    if (fetcher === 'codexWham') return 'codex';
+    return null;
+  }
+
+  // 该服务此刻是否应展示录入表单(claude/codex 仅移动端)。
+  function showCredInput(cfg: ServiceConfig): boolean {
+    const kind = credInputKind(cfg.fetcher);
+    if (!kind) return false;
+    if (kind === 'newAPI') return true;
+    return $mobile;
+  }
+
   let credForms = $state<Record<string, CredForm>>({});
 
-  // 仅对 newAPI 服务懒初始化表单,保留用户已输入的值。
+  // 为可录入服务懒初始化表单,保留用户已输入的值。
   $effect(() => {
     for (const svc of $config?.services ?? []) {
-      if (svc.fetcher === 'newAPI' && !credForms[svc.id]) {
+      if (credInputKind(svc.fetcher) && !credForms[svc.id]) {
         credForms[svc.id] = {
           open: false,
           baseUrl: '',
           accessToken: '',
+          accountId: '',
           userId: '',
           quotaPerUnit: '',
           currency: '',
@@ -127,30 +150,54 @@
   async function onSaveCreds(cfg: ServiceConfig) {
     const f = credForms[cfg.id];
     if (!f) return;
-    if (!cfg.credentialFile) {
-      f.ok = false;
-      f.msg = '该服务未配置 credentialFile,无法保存';
-      return;
-    }
-    if (!f.baseUrl.trim() || !f.accessToken.trim()) {
-      f.ok = false;
-      f.msg = '网关地址和 accessToken 必填';
-      return;
-    }
+    const kind = credInputKind(cfg.fetcher);
 
-    // 仅写入用户填了的字段;userId/quotaPerUnit/currency 留空则交由后端默认(0/500000/$)。
-    const payload: Record<string, unknown> = {
-      baseUrl: f.baseUrl.trim(),
-      accessToken: f.accessToken.trim(),
-    };
-    if (f.userId.trim()) payload.userId = Number(f.userId.trim());
-    if (f.quotaPerUnit.trim()) payload.quotaPerUnit = Number(f.quotaPerUnit.trim());
-    if (f.currency.trim()) payload.currency = f.currency.trim();
+    // 各 fetcher 的校验 + 保存动作。
+    let doSave: (() => Promise<void>) | null = null;
+    if (kind === 'newAPI') {
+      if (!cfg.credentialFile) {
+        f.ok = false;
+        f.msg = '该服务未配置 credentialFile,无法保存';
+        return;
+      }
+      if (!f.baseUrl.trim() || !f.accessToken.trim()) {
+        f.ok = false;
+        f.msg = '网关地址和 accessToken 必填';
+        return;
+      }
+      const payload: Record<string, unknown> = {
+        baseUrl: f.baseUrl.trim(),
+        accessToken: f.accessToken.trim(),
+      };
+      if (f.userId.trim()) payload.userId = Number(f.userId.trim());
+      if (f.quotaPerUnit.trim()) payload.quotaPerUnit = Number(f.quotaPerUnit.trim());
+      if (f.currency.trim()) payload.currency = f.currency.trim();
+      const file = cfg.credentialFile;
+      doSave = () => saveNewApiCredentials(file, JSON.stringify(payload));
+    } else if (kind === 'claude') {
+      if (!f.accessToken.trim()) {
+        f.ok = false;
+        f.msg = 'accessToken 必填';
+        return;
+      }
+      const tok = f.accessToken.trim();
+      doSave = () => saveClaudeCredentials(tok);
+    } else if (kind === 'codex') {
+      if (!f.accessToken.trim() || !f.accountId.trim()) {
+        f.ok = false;
+        f.msg = 'access_token 和 account_id 必填';
+        return;
+      }
+      const tok = f.accessToken.trim();
+      const acc = f.accountId.trim();
+      doSave = () => saveCodexCredentials(tok, acc);
+    }
+    if (!doSave) return;
 
     f.saving = true;
     f.msg = '';
     try {
-      await saveNewApiCredentials(cfg.credentialFile, JSON.stringify(payload));
+      await doSave();
       // 清掉敏感的 token,立即拉一次用量验证凭证可用。
       f.accessToken = '';
       f.ok = true;
@@ -307,22 +354,30 @@
             {/each}
           </div>
 
-          <!-- New-API 凭证录入(仅 newAPI 服务) -->
-          {#if cfg.fetcher === 'newAPI' && credForms[cfg.id]}
+          <!-- 凭证录入:newAPI 桌面+移动;claude/codex 仅移动端 -->
+          {#if showCredInput(cfg) && credForms[cfg.id]}
             {@const f = credForms[cfg.id]}
+            {@const kind = credInputKind(cfg.fetcher)}
             <div class="cred-section">
               <button class="cred-toggle" onclick={() => (f.open = !f.open)}>
                 {f.open ? '▾' : '▸'} 凭证录入
               </button>
               {#if f.open}
                 <div class="cred-form">
-                  <input class="cred-input" type="text" placeholder="网关地址 baseUrl" bind:value={f.baseUrl} />
-                  <input class="cred-input" type="password" placeholder="accessToken(系统访问令牌)" bind:value={f.accessToken} />
-                  <div class="cred-row3">
-                    <input class="cred-input" type="number" placeholder="userId(默认 0)" bind:value={f.userId} />
-                    <input class="cred-input" type="number" placeholder="quotaPerUnit(默认 500000)" bind:value={f.quotaPerUnit} />
-                    <input class="cred-input" type="text" placeholder="货币(默认 $)" bind:value={f.currency} />
-                  </div>
+                  {#if kind === 'newAPI'}
+                    <input class="cred-input" type="text" placeholder="网关地址 baseUrl" bind:value={f.baseUrl} />
+                    <input class="cred-input" type="password" placeholder="accessToken(系统访问令牌)" bind:value={f.accessToken} />
+                    <div class="cred-row3">
+                      <input class="cred-input" type="number" placeholder="userId(默认 0)" bind:value={f.userId} />
+                      <input class="cred-input" type="number" placeholder="quotaPerUnit(默认 500000)" bind:value={f.quotaPerUnit} />
+                      <input class="cred-input" type="text" placeholder="货币(默认 $)" bind:value={f.currency} />
+                    </div>
+                  {:else if kind === 'claude'}
+                    <input class="cred-input" type="password" placeholder="Claude accessToken(claudeAiOauth)" bind:value={f.accessToken} />
+                  {:else if kind === 'codex'}
+                    <input class="cred-input" type="password" placeholder="access_token" bind:value={f.accessToken} />
+                    <input class="cred-input" type="text" placeholder="account_id" bind:value={f.accountId} />
+                  {/if}
                   <div class="cred-actions">
                     <button class="cred-save" disabled={f.saving} onclick={() => onSaveCreds(cfg)}>
                       {f.saving ? '保存中…' : '保存并刷新'}

@@ -63,6 +63,16 @@ export function saveNewApiCredentials(fileName: string, json: string): Promise<v
   return invoke('save_new_api_credentials', { fileName, json });
 }
 
+// commands.rs save_claude_credentials(access_token)
+export function saveClaudeCredentials(accessToken: string): Promise<void> {
+  return invoke('save_claude_credentials', { accessToken });
+}
+
+// commands.rs save_codex_credentials(access_token, account_id)
+export function saveCodexCredentials(accessToken: string, accountId: string): Promise<void> {
+  return invoke('save_codex_credentials', { accessToken, accountId });
+}
+
 // commands.rs is_mobile() — true on Android/iOS, false on desktop.
 export function isMobile(): Promise<boolean> {
   return invoke('is_mobile');
