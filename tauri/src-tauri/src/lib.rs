@@ -8,9 +8,12 @@ mod http;
 mod models;
 mod paths;
 mod state;
+#[cfg(desktop)]
 mod tray;
 
-use tauri::{Listener, Manager, WindowEvent};
+use tauri::Manager;
+#[cfg(desktop)]
+use tauri::{Listener, WindowEvent};
 
 use state::AppState;
 
@@ -28,12 +31,19 @@ pub fn run() {
     let config = config_store::load();
     let app_state = AppState::new(config);
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_autostart::init(
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_notification::init());
+
+    // 开机自启仅桌面端有意义(LaunchAgent / Windows 注册表),移动端无此概念。
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![]),
-        ))
+        ));
+    }
+
+    builder
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             commands::get_snapshots,
@@ -52,27 +62,32 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
 
-            // 1) 托盘。
-            tray::build_tray(&handle)?;
+            // 桌面端:托盘 + popover 失焦收起 + usage-updated 驱动托盘告警图标。
+            // 移动端无托盘/无浮动窗口/无失焦模型,整体跳过(主 App 全屏显示)。
+            #[cfg(desktop)]
+            {
+                // 1) 托盘。
+                tray::build_tray(&handle)?;
 
-            // 2) popover 窗口失焦自动收起(对齐 Swift popover .transient 行为)。
-            if let Some(window) = app.get_webview_window("main") {
-                let win = window.clone();
-                window.on_window_event(move |event| {
-                    if let WindowEvent::Focused(false) = event {
-                        let _ = win.hide();
-                    }
+                // 2) popover 窗口失焦自动收起(对齐 Swift popover .transient 行为)。
+                if let Some(window) = app.get_webview_window("main") {
+                    let win = window.clone();
+                    window.on_window_event(move |event| {
+                        if let WindowEvent::Focused(false) = event {
+                            let _ = win.hide();
+                        }
+                    });
+                }
+
+                // 3) usage-updated 事件 → 同步托盘告警图标。
+                //    选这条单一通路:timer / refresh_now 命令 / 告警配置变更都会 emit usage-updated,
+                //    在此统一驱动托盘,避免在 state.refresh 内反向依赖 tray。
+                let alert_handle = handle.clone();
+                app.listen("usage-updated", move |_event| {
+                    let count = alert_handle.state::<AppState>().active_alert_count();
+                    tray::set_alert(&alert_handle, count);
                 });
             }
-
-            // 3) usage-updated 事件 → 同步托盘告警图标。
-            //    选这条单一通路:timer / refresh_now 命令 / 告警配置变更都会 emit usage-updated,
-            //    在此统一驱动托盘,避免在 state.refresh 内反向依赖 tray。
-            let alert_handle = handle.clone();
-            app.listen("usage-updated", move |_event| {
-                let count = alert_handle.state::<AppState>().active_alert_count();
-                tray::set_alert(&alert_handle, count);
-            });
 
             // 4) 后台刷新定时器:每轮重读 config 的 refresh_seconds(取 60s 地板),
             //    sleep 后 refresh。不跨 .await 持有 Mutex guard(读完即放锁)。
