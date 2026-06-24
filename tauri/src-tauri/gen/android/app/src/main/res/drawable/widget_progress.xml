@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 水平进度条:灰色轨道 + 绿色进度(API 31+ 由代码 tint 成按百分比的颜色)。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <corners android:radius="4dp" />
+            <solid android:color="#33FFFFFF" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <corners android:radius="4dp" />
+                <solid android:color="#3FB950" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>

@@ -34,7 +34,7 @@
             android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- 主屏小组件:读 dataDir/widget.json 渲染用量 -->
+        <!-- 主屏小组件:读 dataDir/widget.json 渲染单渠道用量 -->
         <receiver
             android:name=".UsageWidgetProvider"
             android:exported="false">
@@ -45,5 +45,15 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/usage_widget_info" />
         </receiver>
+
+        <!-- 添加小组件时弹出的渠道选择配置页 -->
+        <activity
+            android:name=".WidgetConfigActivity"
+            android:exported="true"
+            android:theme="@style/Theme.usage_dashboard">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

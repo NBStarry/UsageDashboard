@@ -178,17 +178,23 @@ PhanRouter 卡片正常显示真实余额/消耗/请求数/模型,设置页可�
     Claude 5小时41%/周29%、GPT 5小时5%/周62%、PhanRouter 余额 $1987.12。
   - 真机也可改用系统 VPN(Clash for Android,对 app 透明,无需填代理);二选一。
 
-- ~~**Phase 3：Android 原生主屏小组件**~~（已做）：原生 `AppWidgetProvider`(Kotlin)
-  读 Rust 写出的 `dataDir/widget.json`,渲染前 3 个服务的两行用量(余额型显示余额/消耗,
-  窗口型显示前两个窗口),点击打开 App。
-  - 数据流:`widget.rs` 每次 `refresh` 后(仅移动端)把预格式化快照写到 `home_dir()/widget.json`
-    (时间用 epoch 毫秒,Kotlin 端按本地时区格式化);`MainActivity.onStop()` 调
-    `UsageWidgetProvider.refreshAll()` 把最新数据刷进小组件;另有 30 分钟系统周期兜底。
-  - 添加方式:设置页"添加主屏小组件"按钮 → `request_pin_widget` 命令经 JNI 调
-    `AppWidgetManager.requestPinAppWidget`(只用 framework 类,避开 JNI 找不到 app 类);
-    或长按桌面→微件→UsageDashboard 手动拖入。
-  - 文件:`UsageWidgetProvider.kt`、`res/layout/usage_widget.xml`、`res/drawable/widget_bg.xml`、
-    `res/xml/usage_widget_info.xml`、`AndroidManifest.xml`(注册 receiver)、`widget.rs`。
-  - 验证:模拟器上已确认编译/安装/provider 注册(dumpsys)/微件列表可见为 "UsageDashboard 3×3" /
-    `widget.json` 内容正确 / pin 请求能弹出系统确认框。最终落屏渲染受模拟器启动器的
-    合成手势限制无法自动化截图(真机点"添加"即可),非 app 问题。
+- ~~**Phase 3：Android 原生主屏小组件**~~（已做,**单渠道一卡片 + 进度条**）：
+  原生 `AppWidgetProvider`(Kotlin)读 Rust 写的 `dataDir/widget.json`,**每个小组件实例
+  绑定一个渠道**(添加时弹配置页选),渲染该渠道的窗口进度条(Claude/GPT)或余额(PhanRouter)。
+  - 数据:`widget.rs` 每次 `refresh` 后(仅移动端)写结构化 `widget.json`——每服务带 id/title/
+    accent/kind,窗口型给 `windows[{label,pct}]`,余额型给 `balance{balance,used,currency,
+    requestCount}`(让小组件画进度条);时间用 epoch 毫秒,Kotlin 本地化。
+  - 一渠道一卡片:`WidgetConfigActivity` 添加时列出渠道,选中后把 serviceId 按 appWidgetId
+    存进 SharedPreferences;`UsageWidgetProvider` 按各实例绑定的渠道单独渲染。**未配置时点击
+    小组件直接打开配置页选渠道**(部分桌面 pin 后不自动弹配置)。
+  - 进度条:`res/layout/usage_widget.xml` 每窗口一条 `ProgressBar`,按百分比着色
+    (绿<75/黄<90/红≥90,API 31+ 用 `setColorStateList` tint;老设备绿色默认)。
+  - 刷新:`MainActivity.onStop()` 刷所有实例 + 30 分钟系统周期兜底。添加入口:设置页
+    "添加主屏小组件"按钮(`request_pin_widget` 经 JNI 调 `requestPinAppWidget`),或长按桌面→微件。
+  - 文件:`UsageWidgetProvider.kt`、`WidgetConfigActivity.kt`、`res/layout/usage_widget.xml`、
+    `res/layout/activity_widget_config.xml`、`res/drawable/widget_progress.xml`、`widget_bg.xml`、
+    `res/xml/usage_widget_info.xml`(带 `android:configure`)、`AndroidManifest.xml`、`widget.rs`。
+  - 验证:模拟器上确认编译/安装/provider+config 注册/微件列表可见/`widget.json` 结构正确/
+    **pin 预览里小组件实际渲染出来**(头部圆点+标题+状态)。最终"已配置渲染真实进度条"的落屏
+    截图受模拟器启动器合成手势限制没拿到(picker 拖拽 / pin 确认都不吃 adb 合成手势),
+    真机上拖入选渠道即可,非 app 问题。
