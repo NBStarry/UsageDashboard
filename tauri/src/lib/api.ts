@@ -63,6 +63,11 @@ export function saveNewApiCredentials(fileName: string, json: string): Promise<v
   return invoke('save_new_api_credentials', { fileName, json });
 }
 
+// commands.rs is_mobile() — true on Android/iOS, false on desktop.
+export function isMobile(): Promise<boolean> {
+  return invoke('is_mobile');
+}
+
 export function quit(): Promise<void> {
   return invoke('quit');
 }

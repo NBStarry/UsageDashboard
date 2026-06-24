@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { snapshots, lastUpdated, isRefreshing, init } from '$lib/store';
+  import { snapshots, lastUpdated, isRefreshing, mobile, init } from '$lib/store';
   import { refreshNow, quit } from '$lib/api';
   import { hm } from '$lib/theme';
   import ServiceCard from '$lib/components/ServiceCard.svelte';
@@ -70,7 +70,10 @@
             ↻ 刷新
           {/if}
         </button>
-        <button class="quit-btn" onclick={onQuit} title="退出">⏻</button>
+        <!-- 移动端无"退出"概念(返回/Home 键管理生命周期),隐藏 quit。 -->
+        {#if !$mobile}
+          <button class="quit-btn" onclick={onQuit} title="退出">⏻</button>
+        {/if}
       </div>
     </div>
   {/if}
@@ -95,7 +98,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  /* 安全区:桌面端 env() 解析为 0,移动端避开状态栏/挖孔/底部手势条。 */
+  padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+           calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
   width: 100%;
   height: 100vh;
   overflow-y: auto;

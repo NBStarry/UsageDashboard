@@ -89,9 +89,22 @@ npx tauri android build --debug --target aarch64
 构建相关常量：identifier/applicationId = `app.usagedashboard`；
 compile SDK 35；NDK r27c（27.2.12479018）。
 
-## 4. 待办（接着做）
+## 4. 移动端适配（已做）
 
-- 真机/模拟器实际运行，验证 Svelte UI 在手机渲染。
-- 移动端 UI 适配：隐藏 quit 按钮、安全区适配。
-- Phase 2：手机端凭证（先通 PhanRouter `save_new_api_credentials` app 内输入 → 看到真实用量）。
+平台判定走 Rust `is_mobile` 命令（`cfg!(mobile)`，由 tauri-build 注入），前端
+`store.ts` 的 `mobile` store 在 `init()` 时一次性读取，运行期不变。
+
+- **隐藏 quit**：移动端无"退出"概念（返回/Home 键管理生命周期），`+page.svelte`
+  footer 的退出按钮按 `$mobile` 隐藏。
+- **安全区**：`app.html` viewport 加 `viewport-fit=cover`，`.root` padding 叠加
+  `env(safe-area-inset-*)`（桌面端解析为 0，移动端避开状态栏/挖孔/底部手势条）。
+- **凭证 app 内录入（Phase 2）**：手机沙盒里没法把 JSON 文件丢进 config 目录，
+  设置页对每个 `newAPI` 服务提供"凭证录入"表单（baseUrl / accessToken / userId /
+  quotaPerUnit / currency），保存走已有的 `save_new_api_credentials` 命令写入
+  `config_dir()/<credentialFile>`，保存后自动 `refresh_now` 拉真实用量验证。
+  桌面端同样可用。表单不预填（后端不暴露读凭证命令，accessToken 敏感）。
+
+## 5. 待办（接着做）
+
+- 真机/模拟器实际运行，验证 Svelte UI + 凭证录入在手机上的渲染与行为。
 - Phase 3：Android 原生主屏小组件（App Widget，读共享存储中的用量快照）。

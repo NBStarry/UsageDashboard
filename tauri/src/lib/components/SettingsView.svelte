@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { config } from '$lib/store';
+  import { config, mobile } from '$lib/store';
   import {
     setAlertsEnabled,
     setAlertThreshold,
@@ -8,6 +8,8 @@
     setServiceEnabled,
     moveService,
     setDisplayContent,
+    saveNewApiCredentials,
+    refreshNow,
   } from '$lib/api';
   import type { BillingCategory, ServiceConfig, UsageAlertRule } from '$lib/types';
 
@@ -84,6 +86,83 @@
   function displayIsEnabled(cfg: ServiceConfig, key: string): boolean {
     const d = cfg.display as unknown as Record<string, boolean>;
     return d[key] ?? false;
+  }
+
+  // --- New-API 凭证录入 ---
+  // 移动端无法把 JSON 文件丢进 config 目录,只能 app 内录入。桌面端也可用。
+  // 表单按服务 id 维护;不预填(后端不暴露读凭证命令,accessToken 敏感)。
+  interface CredForm {
+    open: boolean;
+    baseUrl: string;
+    accessToken: string;
+    userId: string;
+    quotaPerUnit: string;
+    currency: string;
+    saving: boolean;
+    msg: string;
+    ok: boolean;
+  }
+
+  let credForms = $state<Record<string, CredForm>>({});
+
+  // 仅对 newAPI 服务懒初始化表单,保留用户已输入的值。
+  $effect(() => {
+    for (const svc of $config?.services ?? []) {
+      if (svc.fetcher === 'newAPI' && !credForms[svc.id]) {
+        credForms[svc.id] = {
+          open: false,
+          baseUrl: '',
+          accessToken: '',
+          userId: '',
+          quotaPerUnit: '',
+          currency: '',
+          saving: false,
+          msg: '',
+          ok: false,
+        };
+      }
+    }
+  });
+
+  async function onSaveCreds(cfg: ServiceConfig) {
+    const f = credForms[cfg.id];
+    if (!f) return;
+    if (!cfg.credentialFile) {
+      f.ok = false;
+      f.msg = '该服务未配置 credentialFile,无法保存';
+      return;
+    }
+    if (!f.baseUrl.trim() || !f.accessToken.trim()) {
+      f.ok = false;
+      f.msg = '网关地址和 accessToken 必填';
+      return;
+    }
+
+    // 仅写入用户填了的字段;userId/quotaPerUnit/currency 留空则交由后端默认(0/500000/$)。
+    const payload: Record<string, unknown> = {
+      baseUrl: f.baseUrl.trim(),
+      accessToken: f.accessToken.trim(),
+    };
+    if (f.userId.trim()) payload.userId = Number(f.userId.trim());
+    if (f.quotaPerUnit.trim()) payload.quotaPerUnit = Number(f.quotaPerUnit.trim());
+    if (f.currency.trim()) payload.currency = f.currency.trim();
+
+    f.saving = true;
+    f.msg = '';
+    try {
+      await saveNewApiCredentials(cfg.credentialFile, JSON.stringify(payload));
+      // 清掉敏感的 token,立即拉一次用量验证凭证可用。
+      f.accessToken = '';
+      f.ok = true;
+      f.msg = '已保存,正在刷新…';
+      await refreshNow();
+      f.msg = '已保存';
+    } catch (e) {
+      f.ok = false;
+      f.msg = `保存失败:${e}`;
+    } finally {
+      f.saving = false;
+    }
   }
 </script>
 
@@ -227,12 +306,43 @@
               </label>
             {/each}
           </div>
+
+          <!-- New-API 凭证录入(仅 newAPI 服务) -->
+          {#if cfg.fetcher === 'newAPI' && credForms[cfg.id]}
+            {@const f = credForms[cfg.id]}
+            <div class="cred-section">
+              <button class="cred-toggle" onclick={() => (f.open = !f.open)}>
+                {f.open ? '▾' : '▸'} 凭证录入
+              </button>
+              {#if f.open}
+                <div class="cred-form">
+                  <input class="cred-input" type="text" placeholder="网关地址 baseUrl" bind:value={f.baseUrl} />
+                  <input class="cred-input" type="password" placeholder="accessToken(系统访问令牌)" bind:value={f.accessToken} />
+                  <div class="cred-row3">
+                    <input class="cred-input" type="number" placeholder="userId(默认 0)" bind:value={f.userId} />
+                    <input class="cred-input" type="number" placeholder="quotaPerUnit(默认 500000)" bind:value={f.quotaPerUnit} />
+                    <input class="cred-input" type="text" placeholder="货币(默认 $)" bind:value={f.currency} />
+                  </div>
+                  <div class="cred-actions">
+                    <button class="cred-save" disabled={f.saving} onclick={() => onSaveCreds(cfg)}>
+                      {f.saving ? '保存中…' : '保存并刷新'}
+                    </button>
+                    {#if f.msg}
+                      <span class="cred-msg" style="color: {f.ok ? '#34C759' : '#FF6B6B'};">{f.msg}</span>
+                    {/if}
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
         </div>
       {/each}
     </div>
 
-    <!-- Bottom hint: Windows config path -->
-    <span class="hint">保存到 %APPDATA%\usage-bar\config.json</span>
+    <!-- Bottom hint: 配置路径(桌面端显示文件位置;移动端为应用沙盒,不展示原始路径) -->
+    {#if !$mobile}
+      <span class="hint">保存到 %APPDATA%\usage-bar\config.json</span>
+    {/if}
   {:else}
     <span class="hint">加载中…</span>
   {/if}
@@ -433,5 +543,81 @@
 .hint {
   font-size: 10px;
   color: rgba(255, 255, 255, 0.58);
+}
+
+/* New-API 凭证录入 */
+.cred-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cred-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  padding: 0;
+}
+
+.cred-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.cred-row3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+
+.cred-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 5px;
+  outline: none;
+}
+
+.cred-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.cred-input:focus {
+  border-color: rgba(10, 132, 255, 0.7);
+}
+
+.cred-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cred-save {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  background: #0a84ff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cred-save:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.cred-msg {
+  font-size: 10px;
+  font-weight: 500;
 }
 </style>

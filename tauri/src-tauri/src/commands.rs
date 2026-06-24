@@ -184,6 +184,13 @@ pub fn save_new_api_credentials(
     Ok(())
 }
 
+// 前端据此切换移动端布局(隐藏 quit、安全区 padding)。
+// cfg!(mobile) 由 tauri-build 注入,Android/iOS 为 true,桌面为 false。
+#[tauri::command]
+pub fn is_mobile() -> bool {
+    cfg!(mobile)
+}
+
 #[tauri::command]
 pub fn quit(app: AppHandle) {
     app.exit(0);

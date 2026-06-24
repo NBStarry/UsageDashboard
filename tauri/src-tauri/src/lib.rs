@@ -57,6 +57,7 @@ pub fn run() {
             commands::set_alert_rule,
             commands::set_alert_cooldown_minutes,
             commands::save_new_api_credentials,
+            commands::is_mobile,
             commands::quit,
         ])
         .setup(|app| {
