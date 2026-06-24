@@ -19,6 +19,12 @@ const MIN_REFRESH_SECONDS: u64 = 60;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WebView2 on Windows can fail to repaint regions after DOM changes while the
+    // window is stable (GPU compositing not invalidating dirty rects). Disabling GPU
+    // forces software rendering, which repaints reliably.
+    #[cfg(windows)]
+    std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu");
+
     let config = config_store::load();
     let app_state = AppState::new(config);
 
