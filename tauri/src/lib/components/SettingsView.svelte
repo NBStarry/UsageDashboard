@@ -12,6 +12,7 @@
     saveClaudeCredentials,
     saveCodexCredentials,
     setProxyUrl,
+    requestPinWidget,
     refreshNow,
   } from '$lib/api';
   import type { BillingCategory, FetcherKind, ServiceConfig, UsageAlertRule } from '$lib/types';
@@ -114,6 +115,18 @@
       proxyMsg = `失败:${e}`;
     } finally {
       proxySaving = false;
+    }
+  }
+
+  // --- 主屏小组件(仅移动端)---
+  let widgetMsg = $state('');
+  async function onAddWidget() {
+    widgetMsg = '';
+    try {
+      const ok = await requestPinWidget();
+      widgetMsg = ok ? '已请求,按系统提示确认添加' : '桌面未接受请求';
+    } catch (e) {
+      widgetMsg = `${e}`;
     }
   }
 
@@ -263,6 +276,19 @@
         <span class="hint">国外接口(Claude/GPT)被墙时填代理;由代理按规则分流,国内接口不受影响。</span>
       </div>
     </div>
+
+    {#if $mobile}
+      <!-- 主屏小组件 -->
+      <div class="panel">
+        <div class="cred-actions">
+          <button class="cred-save" onclick={onAddWidget}>添加主屏小组件</button>
+          {#if widgetMsg}
+            <span class="cred-msg" style="color: rgba(255,255,255,0.7);">{widgetMsg}</span>
+          {/if}
+        </div>
+        <span class="hint">把用量小组件固定到桌面;也可长按桌面→微件→UsageDashboard 手动添加。</span>
+      </div>
+    {/if}
 
     <!-- Alerts panel -->
     <div class="panel">

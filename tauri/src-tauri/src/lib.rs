@@ -10,6 +10,9 @@ mod paths;
 mod state;
 #[cfg(desktop)]
 mod tray;
+// 原生 App Widget 的数据写出,仅移动端。
+#[cfg(mobile)]
+mod widget;
 
 use tauri::Manager;
 #[cfg(desktop)]
@@ -62,6 +65,7 @@ pub fn run() {
             commands::save_claude_credentials,
             commands::save_codex_credentials,
             commands::set_proxy_url,
+            commands::request_pin_widget,
             commands::is_mobile,
             commands::quit,
         ])

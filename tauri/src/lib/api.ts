@@ -78,6 +78,11 @@ export function setProxyUrl(url: string): Promise<void> {
   return invoke('set_proxy_url', { url });
 }
 
+// commands.rs request_pin_widget() — Android: prompt to pin the home-screen widget
+export function requestPinWidget(): Promise<boolean> {
+  return invoke('request_pin_widget');
+}
+
 // commands.rs is_mobile() — true on Android/iOS, false on desktop.
 export function isMobile(): Promise<boolean> {
   return invoke('is_mobile');

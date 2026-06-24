@@ -248,6 +248,15 @@ impl AppState {
         }
 
         *self.last_updated.lock().unwrap() = Some(Utc::now());
+
+        // 移动端:把最新快照写给原生 App Widget(MainActivity.onStop 时触发其重绘)。
+        #[cfg(mobile)]
+        {
+            let snaps = self.snapshots();
+            let lu = *self.last_updated.lock().unwrap();
+            crate::widget::write_snapshot(&snaps, lu);
+        }
+
         let _ = app.emit("usage-updated", ());
     }
 

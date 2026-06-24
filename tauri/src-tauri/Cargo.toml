@@ -26,6 +26,11 @@ chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
 dirs = "5"
 
+# Android 专用:通过 JNI 调 AppWidgetManager.requestPinAppWidget(app 内"添加到主屏")。
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+
 [dev-dependencies]
 wiremock = "0.6"
 tempfile = "3"

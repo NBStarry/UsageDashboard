@@ -178,4 +178,17 @@ PhanRouter 卡片正常显示真实余额/消耗/请求数/模型,设置页可�
     Claude 5小时41%/周29%、GPT 5小时5%/周62%、PhanRouter 余额 $1987.12。
   - 真机也可改用系统 VPN(Clash for Android,对 app 透明,无需填代理);二选一。
 
-- Phase 3：Android 原生主屏小组件（App Widget，读共享存储中的用量快照）。
+- ~~**Phase 3：Android 原生主屏小组件**~~（已做）：原生 `AppWidgetProvider`(Kotlin)
+  读 Rust 写出的 `dataDir/widget.json`,渲染前 3 个服务的两行用量(余额型显示余额/消耗,
+  窗口型显示前两个窗口),点击打开 App。
+  - 数据流:`widget.rs` 每次 `refresh` 后(仅移动端)把预格式化快照写到 `home_dir()/widget.json`
+    (时间用 epoch 毫秒,Kotlin 端按本地时区格式化);`MainActivity.onStop()` 调
+    `UsageWidgetProvider.refreshAll()` 把最新数据刷进小组件;另有 30 分钟系统周期兜底。
+  - 添加方式:设置页"添加主屏小组件"按钮 → `request_pin_widget` 命令经 JNI 调
+    `AppWidgetManager.requestPinAppWidget`(只用 framework 类,避开 JNI 找不到 app 类);
+    或长按桌面→微件→UsageDashboard 手动拖入。
+  - 文件:`UsageWidgetProvider.kt`、`res/layout/usage_widget.xml`、`res/drawable/widget_bg.xml`、
+    `res/xml/usage_widget_info.xml`、`AndroidManifest.xml`(注册 receiver)、`widget.rs`。
+  - 验证:模拟器上已确认编译/安装/provider 注册(dumpsys)/微件列表可见为 "UsageDashboard 3×3" /
+    `widget.json` 内容正确 / pin 请求能弹出系统确认框。最终落屏渲染受模拟器启动器的
+    合成手势限制无法自动化截图(真机点"添加"即可),非 app 问题。

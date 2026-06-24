@@ -254,6 +254,69 @@ pub async fn set_proxy_url(
     Ok(())
 }
 
+// 请求把主屏小组件固定到桌面(弹系统确认框)。仅 Android,经 JNI 调
+// AppWidgetManager.requestPinAppWidget(只用 framework 类,避开 JNI 找不到 app 类的问题)。
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn request_pin_widget() -> Result<bool, String> {
+    use jni::objects::{JObject, JValue};
+    let ctx = ndk_context::android_context();
+    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| format!("vm:{e}"))?;
+    let mut env = vm.attach_current_thread().map_err(|e| format!("attach:{e}"))?;
+    let context = unsafe { JObject::from_raw(ctx.context().cast()) };
+
+    let mgr = env
+        .call_static_method(
+            "android/appwidget/AppWidgetManager",
+            "getInstance",
+            "(Landroid/content/Context;)Landroid/appwidget/AppWidgetManager;",
+            &[JValue::Object(&context)],
+        )
+        .and_then(|v| v.l())
+        .map_err(|e| format!("getInstance:{e}"))?;
+
+    let supported = env
+        .call_method(&mgr, "isRequestPinAppWidgetSupported", "()Z", &[])
+        .and_then(|v| v.z())
+        .map_err(|e| format!("supported:{e}"))?;
+    if !supported {
+        return Err("当前桌面不支持一键添加,请从微件列表手动拖入".to_string());
+    }
+
+    let name = env
+        .new_string("app.usagedashboard.UsageWidgetProvider")
+        .map_err(|e| format!("str:{e}"))?;
+    let name_obj = JObject::from(name);
+    let cn = env
+        .new_object(
+            "android/content/ComponentName",
+            "(Landroid/content/Context;Ljava/lang/String;)V",
+            &[JValue::Object(&context), JValue::Object(&name_obj)],
+        )
+        .map_err(|e| format!("componentName:{e}"))?;
+
+    let ok = env
+        .call_method(
+            &mgr,
+            "requestPinAppWidget",
+            "(Landroid/content/ComponentName;Landroid/os/Bundle;Landroid/app/PendingIntent;)Z",
+            &[
+                JValue::Object(&cn),
+                JValue::Object(&JObject::null()),
+                JValue::Object(&JObject::null()),
+            ],
+        )
+        .and_then(|v| v.z())
+        .map_err(|e| format!("requestPin:{e}"))?;
+    Ok(ok)
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub fn request_pin_widget() -> Result<bool, String> {
+    Err("仅 Android 支持添加主屏小组件".to_string())
+}
+
 // 前端据此切换移动端布局(隐藏 quit、安全区 padding)。
 // cfg!(mobile) 由 tauri-build 注入,Android/iOS 为 true,桌面为 false。
 #[tauri::command]
