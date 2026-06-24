@@ -63,6 +63,22 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
 
+            // 移动端:把 config/cache/凭证 落到 app 可写沙盒(app_config_dir)。
+            // 否则 dirs::config_dir() 指向只读路径,写凭证/存配置报 EROFS。
+            // run() 早期那次 config 加载发生在注入之前(读只读路径拿默认值),
+            // 这里注入后重新加载,确保读到上次持久化的配置并让后续写入落到可写处。
+            #[cfg(mobile)]
+            {
+                if let Ok(dir) = app.path().app_config_dir() {
+                    let _ = std::fs::create_dir_all(&dir);
+                    paths::set_base_dir(dir);
+                    let cfg = config_store::load();
+                    let state = app.state::<AppState>();
+                    *state.config.lock().unwrap() = cfg;
+                    state.rebuild_states();
+                }
+            }
+
             // 桌面端:托盘 + popover 失焦收起 + usage-updated 驱动托盘告警图标。
             // 移动端无托盘/无浮动窗口/无失焦模型,整体跳过(主 App 全屏显示)。
             #[cfg(desktop)]

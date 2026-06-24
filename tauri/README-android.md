@@ -136,11 +136,18 @@ npx tauri android build --debug --target aarch64
   quotaPerUnit / currency），保存走已有的 `save_new_api_credentials` 命令写入
   `config_dir()/<credentialFile>`，保存后自动 `refresh_now` 拉真实用量验证。
   桌面端同样可用。表单不预填（后端不暴露读凭证命令，accessToken 敏感）。
+- **可写路径（移动端必需）**：`dirs::config_dir()` 在 Android 上解析成 `/.config`
+  这类只读路径，写配置/凭证报 `EROFS (os error 30)`——这正是手机端"保存失败"的根因。
+  `paths.rs` 加了一个运行期可注入的 base（`OnceLock`），`lib.rs` setup 里**仅移动端**
+  用 Tauri `app_config_dir()`（可写沙盒 `/data/user/0/<pkg>/usage-bar/`）注入，并重载
+  config。桌面端不变（继续 `dirs::*` 并读 `~/.claude` 等）。已验证：模拟器上录入真实
+  PhanRouter 凭证 → 保存成功 → 拉到真实余额，且配置/凭证重启后持久化。
 
 ## 5. 待办（接着做）
 
-- ~~真机/模拟器实际运行，验证 Svelte UI + 凭证录入在手机上的渲染与行为。~~
-  已在模拟器验证（见上"现状"）。
-- 用真实 PhanRouter 凭证联调一次完整链路：app 内录入 → `save_new_api_credentials`
-  写入 → `refresh_now` → 卡片显示真实余额/用量。
+- **Android WebView 异步重绘 bug**：后台/定时 `refresh` 完成、emit `usage-updated`、
+  前端 store 也更新了（footer "更新于" 时间会变），但卡片 DOM 不重绘——例如 PhanRouter
+  后端已是 `ok`、却一直显示"加载中…"。同 Windows WebView2 那个 GPU 重绘 bug 同源
+  （提交 `1c43638` 用 `--disable-gpu` 修了桌面端），需要给 Android WebView 找等价解法
+  （禁用硬件加速 / 强制 invalidate / CSS 触发 reflow 等）。数据层正常，纯显示问题。
 - Phase 3：Android 原生主屏小组件（App Widget，读共享存储中的用量快照）。
