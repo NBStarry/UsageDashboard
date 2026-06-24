@@ -73,6 +73,11 @@ export function saveCodexCredentials(accessToken: string, accountId: string): Pr
   return invoke('save_codex_credentials', { accessToken, accountId });
 }
 
+// commands.rs set_proxy_url(url) — empty string clears the proxy
+export function setProxyUrl(url: string): Promise<void> {
+  return invoke('set_proxy_url', { url });
+}
+
 // commands.rs is_mobile() — true on Android/iOS, false on desktop.
 export function isMobile(): Promise<boolean> {
   return invoke('is_mobile');

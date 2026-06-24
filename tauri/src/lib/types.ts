@@ -82,6 +82,7 @@ export interface AppConfig {
   refreshSeconds: number;
   alerts: UsageAlertConfig;
   services: ServiceConfig[];
+  proxyUrl?: string | null;
 }
 
 // state.rs: ServiceStatus — discriminated union on `kind` (serde tag = "kind", rename_all = "camelCase")

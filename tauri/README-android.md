@@ -168,11 +168,14 @@ PhanRouter 卡片正常显示真实余额/消耗/请求数/模型,设置页可�
   写进 `home_dir()/.claude/.credentials.json`、`home_dir()/.codex/auth.json`（沙盒可写路径）,
   结构对齐 `credentials.rs` 的读取。已验证:保存成功、fetcher 读到并发起请求。
 
-  > **网络前提**：Claude(`api.anthropic.com`)、Codex(`chatgpt.com`)在国内被墙——
-  > 模拟器/国内直连会 403 或连接失败（已验证同一 token 在通畅网络下返回真实用量）。
-  > **真机用 VPN**（Clash for Android 等,系统级、对 app 透明)即可正常拉取;reqwest
-  > **不走 HTTP 代理**,模拟器 `-http-proxy` 无效(反而会断网)。若要支持"代理模式",
-  > 需给 `http.rs` 的 reqwest client 加显式 proxy 配置(暂未做)。PhanRouter 走国内可达
-  > 域名,无需 VPN。
+- ~~**GFW 下 Claude/GPT 经代理取数**~~（已做）：Claude(`api.anthropic.com`)、
+  Codex(`chatgpt.com`)在国内被墙,直连 403/连接失败。设置页新增 **HTTP 代理** 面板,
+  填代理串(如 `http://127.0.0.1:7897`,模拟器视角宿主 `http://10.0.2.2:7897`)即可。
+  - `config.proxyUrl` 持久化;`http.rs` 全局 `set_proxy` + 每次构建 reqwest client 时
+    `reqwest::Proxy::all`(全量走代理,由代理按规则分流——国内直连、国外走代理,
+    PhanRouter 等国内域名不受影响)。`set_proxy_url` 命令运行期改即生效并重新取数。
+  - 已在模拟器(clean36)验证:设代理 `10.0.2.2:7897` 后**三张卡片全部出真实数据**——
+    Claude 5小时41%/周29%、GPT 5小时5%/周62%、PhanRouter 余额 $1987.12。
+  - 真机也可改用系统 VPN(Clash for Android,对 app 透明,无需填代理);二选一。
 
 - Phase 3：Android 原生主屏小组件（App Widget，读共享存储中的用量快照）。

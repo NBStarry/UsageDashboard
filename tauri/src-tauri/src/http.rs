@@ -1,8 +1,30 @@
+use std::sync::RwLock;
 use std::time::Duration;
 
+// 运行期可配置的 HTTP 代理(来自 config.proxyUrl)。每次构建 client 时读取,
+// 故运行时改代理下次取数即生效。None 表示直连。
+static PROXY: RwLock<Option<String>> = RwLock::new(None);
+
+pub fn set_proxy(url: Option<String>) {
+    let cleaned = url.and_then(|s| {
+        let t = s.trim().to_string();
+        if t.is_empty() { None } else { Some(t) }
+    });
+    if let Ok(mut g) = PROXY.write() {
+        *g = cleaned;
+    }
+}
+
 pub async fn get_json(url: &str, headers: &[(&str, &str)]) -> Result<(serde_json::Value, u16), String> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(12))
+    let mut builder = reqwest::Client::builder().timeout(Duration::from_secs(12));
+    // 配了代理就让 reqwest 走它(all=http+https,经代理 CONNECT 隧道)。
+    // 代理串非法时忽略(直连),不阻断取数。
+    if let Some(p) = PROXY.read().ok().and_then(|g| g.clone()) {
+        if let Ok(proxy) = reqwest::Proxy::all(&p) {
+            builder = builder.proxy(proxy);
+        }
+    }
+    let client = builder
         .build()
         .map_err(|e| format!("客户端初始化失败:{e}"))?;
     let mut req = client.get(url);

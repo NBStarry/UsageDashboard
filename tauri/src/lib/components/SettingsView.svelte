@@ -11,6 +11,7 @@
     saveNewApiCredentials,
     saveClaudeCredentials,
     saveCodexCredentials,
+    setProxyUrl,
     refreshNow,
   } from '$lib/api';
   import type { BillingCategory, FetcherKind, ServiceConfig, UsageAlertRule } from '$lib/types';
@@ -88,6 +89,32 @@
   function displayIsEnabled(cfg: ServiceConfig, key: string): boolean {
     const d = cfg.display as unknown as Record<string, boolean>;
     return d[key] ?? false;
+  }
+
+  // --- HTTP 代理 ---
+  // GFW 下让 Claude/Codex 经代理取数。输入框预填当前配置,运行期改即生效。
+  let proxyInput = $state('');
+  let proxySynced = false;
+  let proxySaving = $state(false);
+  let proxyMsg = $state('');
+  $effect(() => {
+    // 首次拿到 config 时把已存的 proxyUrl 同步进输入框(之后不覆盖用户编辑)。
+    if (!proxySynced && $config) {
+      proxyInput = $config.proxyUrl ?? '';
+      proxySynced = true;
+    }
+  });
+  async function onSaveProxy() {
+    proxySaving = true;
+    proxyMsg = '';
+    try {
+      await setProxyUrl(proxyInput.trim());
+      proxyMsg = proxyInput.trim() ? '已设置,正在刷新…' : '已清除,正在刷新…';
+    } catch (e) {
+      proxyMsg = `失败:${e}`;
+    } finally {
+      proxySaving = false;
+    }
   }
 
   // --- 凭证 app 内录入 ---
@@ -215,6 +242,28 @@
 
 <div class="settings-root">
   {#if $config}
+    <!-- HTTP 代理(GFW 下让 Claude/GPT 经代理取数) -->
+    <div class="panel">
+      <span class="label-semibold" style="font-size: 12px; color: rgba(255,255,255,0.96);">HTTP 代理</span>
+      <div class="cred-form" style="margin-top: 8px;">
+        <input
+          class="cred-input"
+          type="text"
+          placeholder="留空=直连;例 http://127.0.0.1:7897"
+          bind:value={proxyInput}
+        />
+        <div class="cred-actions">
+          <button class="cred-save" disabled={proxySaving} onclick={onSaveProxy}>
+            {proxySaving ? '应用中…' : '应用并刷新'}
+          </button>
+          {#if proxyMsg}
+            <span class="cred-msg" style="color: rgba(255,255,255,0.7);">{proxyMsg}</span>
+          {/if}
+        </div>
+        <span class="hint">国外接口(Claude/GPT)被墙时填代理;由代理按规则分流,国内接口不受影响。</span>
+      </div>
+    </div>
+
     <!-- Alerts panel -->
     <div class="panel">
       <div class="alerts-header">

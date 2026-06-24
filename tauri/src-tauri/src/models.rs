@@ -235,6 +235,11 @@ pub struct AppConfig {
     pub refresh_seconds: i64,
     pub alerts: UsageAlertConfig,
     pub services: Vec<ServiceConfig>,
+    // 可选 HTTP 代理(如 http://127.0.0.1:7897 / 模拟器 http://10.0.2.2:7897)。
+    // 设置后所有取数请求经此代理,由代理按规则分流(国内直连/国外走代理)。
+    // 主要解决 GFW 下 Claude(api.anthropic.com)、Codex(chatgpt.com)无法直连。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_url: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -246,6 +251,8 @@ struct RawAppConfig {
     alerts: UsageAlertConfig,
     #[serde(default)]
     services: Option<Vec<ServiceConfig>>,
+    #[serde(default)]
+    proxy_url: Option<String>,
 }
 
 impl From<RawAppConfig> for AppConfig {
@@ -256,6 +263,7 @@ impl From<RawAppConfig> for AppConfig {
             services: raw
                 .services
                 .unwrap_or_else(|| AppConfig::default().services),
+            proxy_url: raw.proxy_url,
         }
     }
 }
@@ -265,6 +273,7 @@ impl Default for AppConfig {
         AppConfig {
             refresh_seconds: 300,
             alerts: UsageAlertConfig::default(),
+            proxy_url: None,
             services: vec![
                 ServiceConfig::new(
                     "claude",

@@ -236,6 +236,24 @@ pub fn save_codex_credentials(
     Ok(())
 }
 
+// 设置/清除 HTTP 代理(空串=清除)。立即生效:写入 http 全局 + 存配置 + 重新取数。
+// 主要用于 GFW 下让 Claude/Codex 经代理(如 http://127.0.0.1:7897,模拟器 http://10.0.2.2:7897)。
+#[tauri::command]
+pub async fn set_proxy_url(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    url: String,
+) -> Result<(), String> {
+    let trimmed = url.trim();
+    let value = if trimmed.is_empty() { None } else { Some(trimmed.to_string()) };
+    state.config.lock().unwrap().proxy_url = value.clone();
+    crate::http::set_proxy(value);
+    commit_config(&app, &state)?;
+    state.refresh(&app).await;
+    let _ = app.emit("usage-updated", ());
+    Ok(())
+}
+
 // 前端据此切换移动端布局(隐藏 quit、安全区 padding)。
 // cfg!(mobile) 由 tauri-build 注入,Android/iOS 为 true,桌面为 false。
 #[tauri::command]
