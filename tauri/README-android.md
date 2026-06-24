@@ -89,6 +89,37 @@ npx tauri android build --debug --target aarch64
 构建相关常量：identifier/applicationId = `app.usagedashboard`；
 compile SDK 35；NDK r27c（27.2.12479018）。
 
+> 验证：Windows 与 macOS 均已产出 aarch64 debug APK
+> (`app/build/outputs/apk/universal/debug/app-universal-debug.apk`，debug 未裁剪 ~174MB)。
+
+### Windows 注意：工程路径含中文（A:\文档\…）
+
+本仓库经 Syncthing 同步，Windows 端落在 `A:\文档\…`，路径里的中文会两处卡住 Android 构建，需各自绕开：
+
+1. **NDK 链接器** `ld.lld`（经 `.cmd` wrapper 调用）按 GBK 编码中文路径，找不到 `target/`
+   下的 `.o` / version script，报 `cannot find version script` / `unspecified system_category
+   error`。绕法：构建前把 Rust target 目录指向纯 ASCII 路径——
+   ```bash
+   export CARGO_TARGET_DIR="C:/ud-target"
+   ```
+   Tauri CLI 会从同一目录定位 `.so` 并 symlink 进 jniLibs，无需额外配置。
+2. **AGP 路径检查** 检测到非 ASCII 工程路径直接拒绝 apply 插件
+   (`Your project path contains non-ASCII characters`)。绕法已写进
+   `gen/android/gradle.properties`：`android.overridePathCheck=true`。
+
+Windows 完整构建命令（代理端口按实际 Clash 端口）：
+```bash
+cd tauri
+export ANDROID_HOME="$LOCALAPPDATA/Android/Sdk"
+export NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+export CARGO_TARGET_DIR="C:/ud-target"           # 中文路径必需,见上
+export HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897
+export CARGO_HTTP_CHECK_REVOKE=false
+npx tauri android build --debug --target aarch64
+```
+（`ANDROID_HOME` / `NDK_HOME` 已持久化到 Windows User 环境变量，新终端无需再 export；
+此处显式写出是为可复制。境外网络可去掉代理两行。）
+
 ## 4. 移动端适配（已做）
 
 平台判定走 Rust `is_mobile` 命令（`cfg!(mobile)`，由 tauri-build 注入），前端
