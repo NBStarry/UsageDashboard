@@ -116,10 +116,9 @@ struct ServiceCardView: View {
     }
 
     private func windowIsVisible(_ window: UsageWindow) -> Bool {
-        switch window.label {
-        case "5 小时": return display.fiveHour
-        case "周": return display.weekly
-        default: return true
+        switch window.kind {
+        case .fiveHour: return display.fiveHour
+        case .weekly:   return display.weekly
         }
     }
 

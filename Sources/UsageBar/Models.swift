@@ -1,11 +1,71 @@
 import Foundation
 
+// 用量窗口的稳定种类标识(逻辑判断用,不依赖显示文案)。
+enum WindowKind: String, Codable, CaseIterable, Identifiable {
+    case fiveHour
+    case weekly
+
+    var id: String { rawValue }
+
+    var displayLabel: String {
+        switch self {
+        case .fiveHour: return "5 小时"
+        case .weekly:   return "周"
+        }
+    }
+
+    // 设置 UI 里的完整名称。
+    var settingsTitle: String {
+        switch self {
+        case .fiveHour: return "5 小时"
+        case .weekly:   return "周额度"
+        }
+    }
+
+    var durationSeconds: TimeInterval {
+        switch self {
+        case .fiveHour: return 5 * 60 * 60
+        case .weekly:   return 7 * 24 * 60 * 60
+        }
+    }
+
+    // 从显示文案推断种类(兼容旧缓存/历史 label)。
+    static func infer(fromLabel label: String) -> WindowKind {
+        label.contains("周") ? .weekly : .fiveHour
+    }
+}
+
+// 告警严重度:5h 紧急(红)、周 预警(橙)。角标取当前最高严重度。
+enum AlertSeverity: Int, Comparable, Codable {
+    case warning = 0    // 橙 — 周额度
+    case critical = 1   // 红 — 5 小时
+
+    static func < (lhs: AlertSeverity, rhs: AlertSeverity) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+
+    static func forWindow(_ kind: WindowKind) -> AlertSeverity {
+        switch kind {
+        case .fiveHour: return .critical
+        case .weekly:   return .warning
+        }
+    }
+}
+
 // 归一化后的单个用量窗口(5 小时 / 周)。
 struct UsageWindow: Identifiable {
     let id = UUID()
-    let label: String      // "5 小时" / "周"
+    let label: String      // "5 小时" / "周",仅用于显示
     let pct: Double         // 已用百分比 0–100
     let resetAt: Date?      // 重置时间
+    let kind: WindowKind    // 逻辑判断用的稳定种类
+
+    init(label: String, pct: Double, resetAt: Date?, kind: WindowKind? = nil) {
+        self.label = label
+        self.pct = pct
+        self.resetAt = resetAt
+        self.kind = kind ?? WindowKind.infer(fromLabel: label)
+    }
 }
 
 // 模型广场里的一个模型(用于按来源/厂商分类展示)。
@@ -96,48 +156,114 @@ enum UsageAlertRule: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct UsageAlertConfig: Codable, Equatable {
+// 单个窗口的告警配置(阈值 + 规则各自独立)。
+struct WindowAlertConfig: Codable, Equatable {
     var enabled: Bool
-    var minimumUsagePercent: Double
+    var threshold: Double          // 触发阈值(已用百分比)
     var rule: UsageAlertRule
     var paceMultiplier: Double
+
+    init(enabled: Bool = true,
+         threshold: Double = 60,
+         rule: UsageAlertRule = .usageExceedsElapsedWindowPercent,
+         paceMultiplier: Double = 1) {
+        self.enabled = enabled
+        self.threshold = threshold
+        self.rule = rule
+        self.paceMultiplier = paceMultiplier
+    }
+
+    enum CodingKeys: String, CodingKey { case enabled, threshold, rule, paceMultiplier }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        threshold = try c.decodeIfPresent(Double.self, forKey: .threshold) ?? 60
+        let ruleRaw = try c.decodeIfPresent(String.self, forKey: .rule)
+        rule = ruleRaw.flatMap(UsageAlertRule.init(rawValue:)) ?? .usageExceedsElapsedWindowPercent
+        paceMultiplier = try c.decodeIfPresent(Double.self, forKey: .paceMultiplier) ?? 1
+    }
+}
+
+struct UsageAlertConfig: Codable, Equatable {
+    var enabled: Bool
+    var fiveHour: WindowAlertConfig
+    var weekly: WindowAlertConfig
     var cooldownSeconds: Int
     var serviceIDs: [String]?
-    var windows: [String]?
 
+    // 默认:5h 沿用「跑赢时间进度 @60%」;周「仅超过阈值 @80%」。
     static let `default` = UsageAlertConfig()
 
     init(enabled: Bool = true,
-         minimumUsagePercent: Double = 60,
-         rule: UsageAlertRule = .usageExceedsElapsedWindowPercent,
-         paceMultiplier: Double = 1,
+         fiveHour: WindowAlertConfig = WindowAlertConfig(threshold: 60,
+                                                         rule: .usageExceedsElapsedWindowPercent),
+         weekly: WindowAlertConfig = WindowAlertConfig(threshold: 80,
+                                                       rule: .usageExceedsThresholdOnly),
          cooldownSeconds: Int = 1800,
-         serviceIDs: [String]? = nil,
-         windows: [String]? = nil) {
+         serviceIDs: [String]? = nil) {
         self.enabled = enabled
-        self.minimumUsagePercent = minimumUsagePercent
-        self.rule = rule
-        self.paceMultiplier = paceMultiplier
+        self.fiveHour = fiveHour
+        self.weekly = weekly
         self.cooldownSeconds = cooldownSeconds
         self.serviceIDs = serviceIDs
-        self.windows = windows
+    }
+
+    func config(for kind: WindowKind) -> WindowAlertConfig {
+        switch kind {
+        case .fiveHour: return fiveHour
+        case .weekly:   return weekly
+        }
+    }
+
+    mutating func setConfig(_ cfg: WindowAlertConfig, for kind: WindowKind) {
+        switch kind {
+        case .fiveHour: fiveHour = cfg
+        case .weekly:   weekly = cfg
+        }
     }
 
     enum CodingKeys: String, CodingKey {
-        case enabled, minimumUsagePercent, rule, paceMultiplier, cooldownSeconds
-        case serviceIDs, windows
+        case enabled, fiveHour, weekly, cooldownSeconds, serviceIDs
+        // 旧字段(仅用于向后兼容解码):
+        case minimumUsagePercent, rule, paceMultiplier, windows
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(enabled, forKey: .enabled)
+        try c.encode(fiveHour, forKey: .fiveHour)
+        try c.encode(weekly, forKey: .weekly)
+        try c.encode(cooldownSeconds, forKey: .cooldownSeconds)
+        try c.encodeIfPresent(serviceIDs, forKey: .serviceIDs)
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
-        minimumUsagePercent = try c.decodeIfPresent(Double.self, forKey: .minimumUsagePercent) ?? 60
-        let ruleRaw = try c.decodeIfPresent(String.self, forKey: .rule)
-        rule = ruleRaw.flatMap(UsageAlertRule.init(rawValue:)) ?? .usageExceedsElapsedWindowPercent
-        paceMultiplier = try c.decodeIfPresent(Double.self, forKey: .paceMultiplier) ?? 1
         cooldownSeconds = try c.decodeIfPresent(Int.self, forKey: .cooldownSeconds) ?? 1800
         serviceIDs = try c.decodeIfPresent([String].self, forKey: .serviceIDs)
-        windows = try c.decodeIfPresent([String].self, forKey: .windows)
+
+        if let five = try c.decodeIfPresent(WindowAlertConfig.self, forKey: .fiveHour),
+           let week = try c.decodeIfPresent(WindowAlertConfig.self, forKey: .weekly) {
+            // 新格式
+            fiveHour = five
+            weekly = week
+        } else {
+            // 旧格式迁移:单一 minimumUsagePercent/rule/paceMultiplier/windows。
+            // 5h 完整沿用旧值;周套用新默认(80% / 仅超过阈值),仅 enabled 跟随旧 windows。
+            let oldThreshold = try c.decodeIfPresent(Double.self, forKey: .minimumUsagePercent) ?? 60
+            let oldRuleRaw = try c.decodeIfPresent(String.self, forKey: .rule)
+            let oldRule = oldRuleRaw.flatMap(UsageAlertRule.init(rawValue:)) ?? .usageExceedsElapsedWindowPercent
+            let oldPace = try c.decodeIfPresent(Double.self, forKey: .paceMultiplier) ?? 1
+            let oldWindows = try c.decodeIfPresent([String].self, forKey: .windows)
+            let fiveEnabled = oldWindows.map { $0.contains(WindowKind.fiveHour.displayLabel) } ?? true
+            let weekEnabled = oldWindows.map { $0.contains(WindowKind.weekly.displayLabel) } ?? true
+            fiveHour = WindowAlertConfig(enabled: fiveEnabled, threshold: oldThreshold,
+                                         rule: oldRule, paceMultiplier: oldPace)
+            weekly = WindowAlertConfig(enabled: weekEnabled, threshold: 80,
+                                       rule: .usageExceedsThresholdOnly, paceMultiplier: 1)
+        }
     }
 }
 

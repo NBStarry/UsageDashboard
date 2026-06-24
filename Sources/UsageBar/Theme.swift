@@ -23,6 +23,14 @@ enum Theme {
         return Color(hex: "#3FB950")
     }
 
+    // 告警严重度色:critical(5h)=红,warning(周)=橙。
+    static func severityColor(_ severity: AlertSeverity) -> Color {
+        switch severity {
+        case .critical: return red
+        case .warning:  return Color(hex: "#FF9F0A")
+        }
+    }
+
     static let cardBg = Color(.sRGB, red: 28/255, green: 28/255, blue: 30/255, opacity: 0.9)
     static let labelGray = Color(hex: "#D8D8DA")
     static let subGray = Color(hex: "#8E8E93")

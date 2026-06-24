@@ -10,10 +10,12 @@ final class UsageStore: ObservableObject {
     @Published private(set) var configSaveError: String?
     @Published private(set) var activeAlertCount = 0
     @Published private(set) var activeAlertSummary: String?
+    @Published private(set) var highestActiveSeverity: AlertSeverity?
 
     private var timer: Timer?
     private var lastAlertAtByKey: [String: Date] = [:]
-    private var activeAlertKeysByService: [String: Set<String>] = [:]
+    // service id → (告警 key → 严重度)
+    private var activeAlertsByService: [String: [String: AlertSeverity]] = [:]
 
     init(config: AppConfig) {
         self.config = config
@@ -73,16 +75,29 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    func setAlertMinimumUsagePercent(_ pct: Double) {
+    func setWindowAlertEnabled(_ kind: WindowKind, enabled: Bool) {
         var next = config
-        next.alerts.minimumUsagePercent = min(100, max(0, pct))
+        var wcfg = next.alerts.config(for: kind)
+        wcfg.enabled = enabled
+        next.alerts.setConfig(wcfg, for: kind)
         applyConfig(next)
         refreshActiveAlertsFromCurrentStates()
     }
 
-    func setAlertRule(_ rule: UsageAlertRule) {
+    func setWindowAlertThreshold(_ kind: WindowKind, pct: Double) {
         var next = config
-        next.alerts.rule = rule
+        var wcfg = next.alerts.config(for: kind)
+        wcfg.threshold = min(100, max(0, pct))
+        next.alerts.setConfig(wcfg, for: kind)
+        applyConfig(next)
+        refreshActiveAlertsFromCurrentStates()
+    }
+
+    func setWindowAlertRule(_ kind: WindowKind, rule: UsageAlertRule) {
+        var next = config
+        var wcfg = next.alerts.config(for: kind)
+        wcfg.rule = rule
+        next.alerts.setConfig(wcfg, for: kind)
         applyConfig(next)
         refreshActiveAlertsFromCurrentStates()
     }
@@ -128,7 +143,7 @@ final class UsageStore: ObservableObject {
             }
             return ServiceRuntime(config: cfg, status: .loading)
         }
-        activeAlertKeysByService = activeAlertKeysByService.filter { serviceID, _ in
+        activeAlertsByService = activeAlertsByService.filter { serviceID, _ in
             states.contains { $0.id == serviceID }
         }
         publishActiveAlerts()
@@ -177,29 +192,31 @@ final class UsageStore: ObservableObject {
     private func updateAlerts(for service: ServiceConfig, usage: Usage, sendNotifications: Bool) {
         let alerts = config.alerts
         guard alerts.enabled, service.category == .subscription else {
-            activeAlertKeysByService[service.id] = []
+            activeAlertsByService[service.id] = [:]
             publishActiveAlerts()
             return
         }
         if let serviceIDs = alerts.serviceIDs, !serviceIDs.contains(service.id) {
-            activeAlertKeysByService[service.id] = []
+            activeAlertsByService[service.id] = [:]
             publishActiveAlerts()
             return
         }
 
         let now = Date()
-        var activeKeys: Set<String> = []
+        var active: [String: AlertSeverity] = [:]
         for window in usage.windows {
-            if let windows = alerts.windows, !windows.contains(window.label) { continue }
+            // 每个窗口用各自独立的阈值 / 规则 / 开关。
+            let wcfg = alerts.config(for: window.kind)
+            guard wcfg.enabled else { continue }
             let usagePct = min(100, max(0, window.pct))
-            guard usagePct >= alerts.minimumUsagePercent else { continue }
+            guard usagePct >= wcfg.threshold else { continue }
 
             let elapsedPct = elapsedWindowPercent(for: window, now: now)
-            guard alertRuleMatches(alerts.rule, usagePct: usagePct, elapsedPct: elapsedPct,
-                                   paceMultiplier: alerts.paceMultiplier) else { continue }
+            guard alertRuleMatches(wcfg.rule, usagePct: usagePct, elapsedPct: elapsedPct,
+                                   paceMultiplier: wcfg.paceMultiplier) else { continue }
 
-            let key = alertKey(serviceID: service.id, window: window, rule: alerts.rule)
-            activeKeys.insert(key)
+            let key = alertKey(serviceID: service.id, window: window, rule: wcfg.rule)
+            active[key] = AlertSeverity.forWindow(window.kind)
             guard sendNotifications else { continue }
             if let last = lastAlertAtByKey[key],
                now.timeIntervalSince(last) < TimeInterval(max(60, alerts.cooldownSeconds)) {
@@ -209,9 +226,9 @@ final class UsageStore: ObservableObject {
             AlertNotifier.send(title: "\(service.title) 用量提醒",
                                body: alertBody(service: service, window: window,
                                                usagePct: usagePct, elapsedPct: elapsedPct,
-                                               alerts: alerts))
+                                               windowConfig: wcfg))
         }
-        activeAlertKeysByService[service.id] = activeKeys
+        activeAlertsByService[service.id] = active
         publishActiveAlerts()
     }
 
@@ -225,21 +242,22 @@ final class UsageStore: ObservableObject {
             case .ok(let usage, _), .stale(let usage, _, _):
                 updateAlerts(for: rt.config, usage: usage, sendNotifications: false)
             case .loading, .error:
-                activeAlertKeysByService[rt.id] = []
+                activeAlertsByService[rt.id] = [:]
             }
         }
         publishActiveAlerts()
     }
 
     private func clearActiveAlerts() {
-        activeAlertKeysByService.removeAll()
+        activeAlertsByService.removeAll()
         publishActiveAlerts()
     }
 
     private func publishActiveAlerts() {
-        let count = activeAlertKeysByService.values.reduce(0) { $0 + $1.count }
-        activeAlertCount = count
-        activeAlertSummary = count > 0 ? "\(count) 个用量告警" : nil
+        let severities = activeAlertsByService.values.flatMap { $0.values }
+        activeAlertCount = severities.count
+        activeAlertSummary = severities.isEmpty ? nil : "\(severities.count) 个用量告警"
+        highestActiveSeverity = severities.max()
     }
 
     private func alertRuleMatches(_ rule: UsageAlertRule, usagePct: Double,
@@ -255,17 +273,11 @@ final class UsageStore: ObservableObject {
     }
 
     private func elapsedWindowPercent(for window: UsageWindow, now: Date) -> Double? {
-        guard let resetAt = window.resetAt,
-              let duration = windowDurationSeconds(label: window.label) else { return nil }
+        guard let resetAt = window.resetAt else { return nil }
+        let duration = window.kind.durationSeconds
         let remaining = resetAt.timeIntervalSince(now)
         let elapsed = duration - remaining
         return min(100, max(0, elapsed / duration * 100))
-    }
-
-    private func windowDurationSeconds(label: String) -> TimeInterval? {
-        if label.contains("5") { return 5 * 60 * 60 }
-        if label.contains("周") { return 7 * 24 * 60 * 60 }
-        return nil
     }
 
     private func alertKey(serviceID: String, window: UsageWindow, rule: UsageAlertRule) -> String {
@@ -274,10 +286,10 @@ final class UsageStore: ObservableObject {
     }
 
     private func alertBody(service: ServiceConfig, window: UsageWindow, usagePct: Double,
-                           elapsedPct: Double?, alerts: UsageAlertConfig) -> String {
+                           elapsedPct: Double?, windowConfig: WindowAlertConfig) -> String {
         let usageText = "\(Int(usagePct.rounded()))%"
-        let thresholdText = "\(Int(alerts.minimumUsagePercent.rounded()))%"
-        switch alerts.rule {
+        let thresholdText = "\(Int(windowConfig.threshold.rounded()))%"
+        switch windowConfig.rule {
         case .usageExceedsThresholdOnly:
             return "\(service.title) \(window.label) 用量 \(usageText),已超过 \(thresholdText) 阈值。"
         case .usageExceedsElapsedWindowPercent:

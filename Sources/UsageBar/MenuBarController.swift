@@ -15,16 +15,18 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         super.init()
 
         if let button = statusItem.button {
-            updateStatusIcon(alertCount: store.activeAlertCount)
+            updateStatusIcon(alertCount: store.activeAlertCount,
+                             severity: store.highestActiveSeverity)
             button.action = #selector(handleClick(_:))
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
-        store.$activeAlertCount
-            .removeDuplicates()
-            .sink { [weak self] count in
-                self?.updateStatusIcon(alertCount: count)
+        // 角标颜色取当前最高严重度(5h 红 / 周 橙),数量进 tooltip。
+        store.$activeAlertCount.combineLatest(store.$highestActiveSeverity)
+            .removeDuplicates { $0 == $1 }
+            .sink { [weak self] count, severity in
+                self?.updateStatusIcon(alertCount: count, severity: severity)
             }
             .store(in: &cancellables)
 
@@ -90,16 +92,25 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
 
     @objc private func menuQuit() { NSApp.terminate(nil) }
 
-    private func updateStatusIcon(alertCount: Int) {
+    private func updateStatusIcon(alertCount: Int, severity: AlertSeverity?) {
         guard let button = statusItem.button else { return }
         if alertCount > 0 {
-            button.image = Self.alertStatusImage()
+            let sev = severity ?? .critical
+            button.image = Self.alertStatusImage(severity: sev)
             button.image?.isTemplate = false
-            button.toolTip = "订阅用量:\(alertCount) 个告警"
+            let kindText = sev == .critical ? "含 5 小时" : "仅周额度"
+            button.toolTip = "订阅用量:\(alertCount) 个告警(\(kindText))"
         } else {
             button.image = Self.normalStatusImage()
             button.image?.isTemplate = true
             button.toolTip = "订阅用量"
+        }
+    }
+
+    private static func badgeColor(_ severity: AlertSeverity) -> NSColor {
+        switch severity {
+        case .critical: return .systemRed
+        case .warning:  return .systemOrange
         }
     }
 
@@ -108,7 +119,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
                 accessibilityDescription: "订阅用量")
     }
 
-    private static func alertStatusImage() -> NSImage {
+    private static func alertStatusImage(severity: AlertSeverity) -> NSImage {
         let size = NSSize(width: 24, height: 18)
         let image = NSImage(size: size)
         image.lockFocus()
@@ -121,7 +132,7 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
                    respectFlipped: true, hints: nil)
 
         let badgeRect = NSRect(x: 13, y: 7, width: 10, height: 10)
-        NSColor.systemRed.setFill()
+        badgeColor(severity).setFill()
         NSBezierPath(ovalIn: badgeRect).fill()
 
         let paragraph = NSMutableParagraphStyle()

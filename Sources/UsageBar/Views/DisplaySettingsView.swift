@@ -46,20 +46,6 @@ private struct AlertSettingsView: View {
         )
     }
 
-    private var thresholdBinding: Binding<Double> {
-        Binding(
-            get: { store.config.alerts.minimumUsagePercent },
-            set: { store.setAlertMinimumUsagePercent($0) }
-        )
-    }
-
-    private var ruleBinding: Binding<UsageAlertRule> {
-        Binding(
-            get: { store.config.alerts.rule },
-            set: { store.setAlertRule($0) }
-        )
-    }
-
     private var cooldownBinding: Binding<Int> {
         Binding(
             get: { max(1, store.config.alerts.cooldownSeconds / 60) },
@@ -76,26 +62,10 @@ private struct AlertSettingsView: View {
             }
             .toggleStyle(.checkbox)
 
-            VStack(alignment: .leading, spacing: 7) {
-                HStack {
-                    Text("阈值")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(0.86))
-                    Spacer()
-                    Text("\(Int(store.config.alerts.minimumUsagePercent.rounded()))%")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.9))
-                }
-                Slider(value: thresholdBinding, in: 0...100, step: 5)
-                    .disabled(!store.config.alerts.enabled)
-
-                Picker("规则", selection: ruleBinding) {
-                    ForEach(UsageAlertRule.allCases) { rule in
-                        Text(rule.title).tag(rule)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .disabled(!store.config.alerts.enabled)
+            VStack(alignment: .leading, spacing: 10) {
+                // 5h 与周额度各自独立阈值 / 规则;颜色对应角标严重度(红 / 橙)。
+                WindowAlertGroup(kind: .fiveHour)
+                WindowAlertGroup(kind: .weekly)
 
                 Stepper(value: cooldownBinding, in: 1...240, step: 5) {
                     Text("冷却 \(max(1, store.config.alerts.cooldownSeconds / 60)) 分钟")
@@ -114,6 +84,82 @@ private struct AlertSettingsView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.white.opacity(0.16), lineWidth: 1)
                 )
+        )
+    }
+}
+
+// 单个窗口(5 小时 / 周额度)的告警设置:开关 + 阈值 + 规则。
+private struct WindowAlertGroup: View {
+    @EnvironmentObject var store: UsageStore
+    let kind: WindowKind
+
+    private var wcfg: WindowAlertConfig { store.config.alerts.config(for: kind) }
+    private var alertsEnabled: Bool { store.config.alerts.enabled }
+
+    private var enabledBinding: Binding<Bool> {
+        Binding(
+            get: { store.config.alerts.config(for: kind).enabled },
+            set: { store.setWindowAlertEnabled(kind, enabled: $0) }
+        )
+    }
+
+    private var thresholdBinding: Binding<Double> {
+        Binding(
+            get: { store.config.alerts.config(for: kind).threshold },
+            set: { store.setWindowAlertThreshold(kind, pct: $0) }
+        )
+    }
+
+    private var ruleBinding: Binding<UsageAlertRule> {
+        Binding(
+            get: { store.config.alerts.config(for: kind).rule },
+            set: { store.setWindowAlertRule(kind, rule: $0) }
+        )
+    }
+
+    private var rowEnabled: Bool { alertsEnabled && wcfg.enabled }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Toggle(isOn: enabledBinding) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Theme.severityColor(.forWindow(kind)))
+                        .frame(width: 8, height: 8)
+                    Text(kind.settingsTitle)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.92))
+                }
+            }
+            .toggleStyle(.checkbox)
+            .disabled(!alertsEnabled)
+
+            HStack {
+                Text("阈值")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white.opacity(0.82))
+                Spacer()
+                Text("\(Int(wcfg.threshold.rounded()))%")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+            }
+            Slider(value: thresholdBinding, in: 0...100, step: 5)
+                .disabled(!rowEnabled)
+
+            Picker("规则", selection: ruleBinding) {
+                ForEach(UsageAlertRule.allCases) { rule in
+                    Text(rule.title).tag(rule)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .disabled(!rowEnabled)
+        }
+        .opacity(rowEnabled ? 1 : 0.55)
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.white.opacity(0.05))
         )
     }
 }

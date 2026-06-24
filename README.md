@@ -15,7 +15,7 @@ macOS 原生菜单栏 App(Swift + SwiftUI,无 Dock 图标),实时显示订阅号
 - 后台每 5 分钟自动刷新;面板内有手动刷新按钮。
 - 取数失败时回退上次缓存并标 ⚠;从未成功过才显示纯错误。
 - 弹窗齿轮设置:选择展示哪些渠道商卡片、调整卡片顺序、勾选每张卡展示内容。
-- 订阅号告警:用量超过阈值后,可按“跑赢时间进度”或“仅超过阈值”触发 macOS 通知,菜单栏图标同步显示红色感叹号。
+- 订阅号告警:**5 小时**与**周额度**两个窗口各自独立设置阈值与规则(“跑赢时间进度”/“仅超过阈值”),超阈值触发 macOS 通知。菜单栏角标按严重度着色——5 小时触发为**红色**、仅周额度触发为**橙色**,角标取当前最高严重度。
 - 右键菜单:立即刷新 / 开机自启(`SMAppService`)/ 退出。
 
 ## 取数
@@ -39,10 +39,9 @@ PhanRouter 的 `accessToken` 是 **系统访问令牌**(个人设置→生成,�
   "refreshSeconds": 300,
   "alerts": {
     "enabled": true,
-    "minimumUsagePercent": 60,
-    "rule": "usageExceedsElapsedWindowPercent",
-    "paceMultiplier": 1,
-    "cooldownSeconds": 1800
+    "cooldownSeconds": 1800,
+    "fiveHour": {"enabled": true, "threshold": 60, "rule": "usageExceedsElapsedWindowPercent", "paceMultiplier": 1},
+    "weekly":   {"enabled": true, "threshold": 80, "rule": "usageExceedsThresholdOnly", "paceMultiplier": 1}
   },
   "services": [
     {"id": "claude", "title": "Claude", "accent": "#D97757", "category": "subscription", "fetcher": "claudeOAuth", "enabled": true},
@@ -51,9 +50,11 @@ PhanRouter 的 `accessToken` 是 **系统访问令牌**(个人设置→生成,�
   ]
 }
 ```
-应用内设置会把告警开关、阈值、规则、冷却时间、卡片开关、顺序和 `display` 展示项写回该文件。
+应用内设置会把告警开关、各窗口阈值与规则、冷却时间、卡片开关、顺序和 `display` 展示项写回该文件。
 
-告警只作用于 `category: "subscription"` 的服务。`usageExceedsElapsedWindowPercent` 表示用量超过阈值后,再判断用量百分比是否高于当前窗口已流逝时间百分比;`usageExceedsThresholdOnly` 表示只要超过阈值就报警。`cooldownSeconds` 用于避免同一窗口反复提醒。
+告警只作用于 `category: "subscription"` 的服务。`alerts.fiveHour` 与 `alerts.weekly` 分别配置 5 小时窗口和周窗口,各自独立的 `enabled` / `threshold`(阈值百分比)/ `rule` / `paceMultiplier`:`usageExceedsElapsedWindowPercent` 表示用量超过阈值后,再判断用量百分比是否高于当前窗口已流逝时间百分比(乘 `paceMultiplier`);`usageExceedsThresholdOnly` 表示只要超过阈值就报警。严重度固定为 5 小时=红、周=橙,菜单栏角标取当前最高严重度。`cooldownSeconds` 用于避免同一窗口反复提醒。
+
+> 兼容旧配置:旧的单一 `minimumUsagePercent` / `rule` / `paceMultiplier` / `windows` 字段在加载时自动迁移——5 小时窗口沿用旧阈值与旧规则,周窗口套用新默认(80% / 仅超过阈值);下次保存后写回为上面的新结构。
 
 New-API 兼容渠道的凭证单独放 `~/.config/usage-bar/<credentialFile>`:
 ```json
@@ -85,4 +86,5 @@ cp -r TokenUsageDashboard.app /Applications/  # 建议:开机自启需 App 在�
 .build/release/TokenUsageDashboard --fetch phanrouter
 .build/release/TokenUsageDashboard --fetch mygateway  # 配置中的自定义服务 id
 .build/release/TokenUsageDashboard --render-readme    # 重新生成 README 界面图
+.build/release/TokenUsageDashboard --dump-alerts      # 打印解析后的告警配置(含旧格式迁移,只读)
 ```

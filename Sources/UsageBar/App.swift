@@ -34,6 +34,11 @@ struct TokenUsageDashboardApp {
             renderReadmeScreenshots()
             return
         }
+        // 调试:加载 config.json(含旧格式迁移)并打印解析后的告警配置,只读不写。
+        if args.count >= 2, args[1] == "--dump-alerts" {
+            dumpAlerts()
+            return
+        }
 
         let app = NSApplication.shared
         let delegate = AppDelegate()
@@ -152,6 +157,18 @@ struct TokenUsageDashboardApp {
             return
         }
         try? png.write(to: url)
+    }
+
+    @MainActor
+    static func dumpAlerts() {
+        let a = AppConfigStore.load().alerts
+        func line(_ kind: WindowKind) -> String {
+            let w = a.config(for: kind)
+            return "  \(kind.settingsTitle): enabled=\(w.enabled) threshold=\(Int(w.threshold))% rule=\(w.rule.title) pace=\(w.paceMultiplier)"
+        }
+        print("订阅号告警 enabled=\(a.enabled) cooldown=\(a.cooldownSeconds)s serviceIDs=\(a.serviceIDs.map { "\($0)" } ?? "全部")")
+        print(line(.fiveHour))
+        print(line(.weekly))
     }
 
     @MainActor
@@ -283,7 +300,7 @@ private struct ReadmeSettingsPreview: View {
     }
 
     private var alertPanel: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 7) {
                 Image(systemName: "checkmark.square.fill")
                     .foregroundColor(Color(hex: "#3FB950"))
@@ -293,21 +310,10 @@ private struct ReadmeSettingsPreview: View {
                     .foregroundColor(.white.opacity(0.96))
             }
 
-            HStack {
-                Text("阈值")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white.opacity(0.86))
-                Spacer()
-                Text("60%")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.9))
-            }
-            mockSlider(progress: 0.6)
-
-            HStack(spacing: 6) {
-                rulePill("跑赢时间进度", active: true)
-                rulePill("仅超过阈值", active: false)
-            }
+            windowAlertGroup(title: "5 小时", dot: Theme.red, threshold: "60%",
+                             progress: 0.6, ruleElapsedActive: true)
+            windowAlertGroup(title: "周额度", dot: Color(hex: "#FF9F0A"), threshold: "80%",
+                             progress: 0.8, ruleElapsedActive: false)
 
             Text("冷却 30 分钟")
                 .font(.system(size: 11, weight: .medium))
@@ -315,6 +321,37 @@ private struct ReadmeSettingsPreview: View {
         }
         .padding(10)
         .background(panelBackground)
+    }
+
+    private func windowAlertGroup(title: String, dot: Color, threshold: String,
+                                  progress: Double, ruleElapsedActive: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.square.fill")
+                    .foregroundColor(Color(hex: "#3FB950"))
+                    .font(.system(size: 12, weight: .semibold))
+                Circle().fill(dot).frame(width: 8, height: 8)
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.92))
+            }
+            HStack {
+                Text("阈值")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white.opacity(0.82))
+                Spacer()
+                Text(threshold)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+            }
+            mockSlider(progress: progress)
+            HStack(spacing: 6) {
+                rulePill("跑赢时间进度", active: ruleElapsedActive)
+                rulePill("仅超过阈值", active: !ruleElapsedActive)
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.05)))
     }
 
     private func serviceRow(title: String, type: String, color: Color, items: [String]) -> some View {
