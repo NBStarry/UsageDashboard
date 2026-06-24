@@ -4,8 +4,10 @@ Android 端基于 Tauri 2 移动端，复用 `tauri/` 下的 Svelte 前端 + Rus
 桌面专属代码（托盘 / autostart / popover 窗口）已用 `#[cfg(desktop)]` 隔离，
 移动端全屏显示主 App。本文档记录在一台新机器上从零把 Android 构建跑起来的步骤。
 
-> 现状：`tauri android build --debug --target aarch64` 已验证能编译并产出 APK。
-> 真机/模拟器实际运行与移动端 UI 适配（隐藏 quit 按钮等）尚未完成。
+> 现状：已在 Windows 模拟器（AVD `Medium_Phone_API_36`，Android 16/API 36）实跑验证：
+> APK 安装启动无崩溃，Svelte UI 全屏渲染正常；移动端适配生效（隐藏 quit、安全区、
+> 隐藏桌面配置路径提示）；PhanRouter 卡片的 app 内凭证录入表单正常展开。
+> 待真实凭证联调“录入→看到真实用量”，以及 Phase 3 原生小组件。
 
 ## 1. 工具链前置
 
@@ -137,5 +139,8 @@ npx tauri android build --debug --target aarch64
 
 ## 5. 待办（接着做）
 
-- 真机/模拟器实际运行，验证 Svelte UI + 凭证录入在手机上的渲染与行为。
+- ~~真机/模拟器实际运行，验证 Svelte UI + 凭证录入在手机上的渲染与行为。~~
+  已在模拟器验证（见上"现状"）。
+- 用真实 PhanRouter 凭证联调一次完整链路：app 内录入 → `save_new_api_credentials`
+  写入 → `refresh_now` → 卡片显示真实余额/用量。
 - Phase 3：Android 原生主屏小组件（App Widget，读共享存储中的用量快照）。
