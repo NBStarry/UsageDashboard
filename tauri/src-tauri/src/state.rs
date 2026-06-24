@@ -25,12 +25,17 @@ use crate::models::{AppConfig, ServiceConfig, Usage};
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ServiceStatus {
     Loading,
+    // 注意:enum 的 rename_all 只改变体名,不改结构变体内的字段。
+    // 这些字段必须显式 rename 成 camelCase,否则前端读到的是 undefined
+    // (历史 bug:fetched_at 序列化为 snake_case → hm(undefined) 抛错 → 渲染中断)。
     Ok {
         usage: Usage,
+        #[serde(rename = "fetchedAt")]
         fetched_at: DateTime<Utc>,
     },
     Stale {
         usage: Usage,
+        #[serde(rename = "cachedAt")]
         cached_at: Option<DateTime<Utc>>,
         error: String,
     },

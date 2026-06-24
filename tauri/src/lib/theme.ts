@@ -9,8 +9,12 @@ export function barColor(pct: number): string {
 }
 
 // hm formats a Date (or ISO string) as HH:mm (24-hour, zero-padded).
-export function hm(date: Date | string): string {
+// 防御性:date 为空或非法时返回 "--:--" 而非抛错——渲染中一旦抛错会中断
+// Svelte 的 effect flush,使整个组件后续不再更新(见历史 fetchedAt 序列化 bug)。
+export function hm(date: Date | string | null | undefined): string {
+  if (date == null) return '--:--';
   const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return '--:--';
   const h = String(d.getHours()).padStart(2, '0');
   const m = String(d.getMinutes()).padStart(2, '0');
   return `${h}:${m}`;

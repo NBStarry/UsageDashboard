@@ -143,11 +143,26 @@ npx tauri android build --debug --target aarch64
   config。桌面端不变（继续 `dirs::*` 并读 `~/.claude` 等）。已验证：模拟器上录入真实
   PhanRouter 凭证 → 保存成功 → 拉到真实余额，且配置/凭证重启后持久化。
 
-## 5. 待办（接着做）
+## 5. 卡片首次渲染后不更新（已修，根因是序列化 bug）
 
-- **Android WebView 异步重绘 bug**：后台/定时 `refresh` 完成、emit `usage-updated`、
-  前端 store 也更新了（footer "更新于" 时间会变），但卡片 DOM 不重绘——例如 PhanRouter
-  后端已是 `ok`、却一直显示"加载中…"。同 Windows WebView2 那个 GPU 重绘 bug 同源
-  （提交 `1c43638` 用 `--disable-gpu` 修了桌面端），需要给 Android WebView 找等价解法
-  （禁用硬件加速 / 强制 invalidate / CSS 触发 reflow 等）。数据层正常，纯显示问题。
+现象一度被误判为"WebView 重绘问题"：后端 `refresh` 完成、store 也更新了，但卡片
+DOM 卡在"加载中…"。真因是**渲染时抛异常导致 Svelte 调度器卡死**：
+
+- `ServiceStatus` 是 enum，`#[serde(rename_all = "camelCase")]` **只改变体名,不改
+  结构变体内的字段**，于是 `fetched_at` / `cached_at` 仍按 snake_case 序列化,前端读到
+  的 `status.fetchedAt` 是 `undefined`。
+- `ServiceCard` 渲染 ok 卡片时 `hm(status.fetchedAt)` → `undefined.getHours()` 抛错,
+  这次 effect flush 出错后 Svelte 的调度器不再 flush 后续更新 → 整个页面冻结
+  （首次渲染后任何 store/状态变化都不再反映,连设置页切换也卡住）。
+
+修复：`state.rs` 给 `fetched_at`/`cached_at` 显式 `#[serde(rename = "...")]`;
+`theme.ts` 的 `hm()` 加固为 null/非法日期返回 `--:--` 不抛错。已在模拟器验证:
+PhanRouter 卡片正常显示真实余额/消耗/请求数/模型,设置页可反复切换,实时刷新生效。
+
+## 6. 待办（接着做）
+
+- **Claude / Codex 手机端凭证**：二者读 `~/.claude/.credentials.json`、`~/.codex/auth.json`
+  （桌面 CLI 登录写入),手机沙盒里没有,卡片显示"未找到凭证"。需仿 New-API 的录入表单,
+  给 Claude(OAuth accessToken)和 Codex(access_token + account_id)加 app 内录入,
+  写进沙盒对应路径(`home_dir()/.claude/...`、`home_dir()/.codex/...`,现已指向可写沙盒)。
 - Phase 3：Android 原生主屏小组件（App Widget，读共享存储中的用量快照）。

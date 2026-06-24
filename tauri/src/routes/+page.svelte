@@ -43,6 +43,9 @@
   {#if showingSettings}
     <SettingsView />
   {:else}
+    <!-- Android WebView 上 {#each $snapshots} 在首次填充后不随后续 store 更新重渲染
+         (store 已更新、$lastUpdated 也变,但卡片 DOM 卡在旧状态)。用 {#key $lastUpdated}
+         包裹:每次刷新 lastUpdated 必变 → 整个列表重挂载 → 读当前 $snapshots 重渲染。 -->
     <div class="card-list">
       {#if $snapshots.length === 0}
         <span class="empty-state">未选择任何渠道商</span>

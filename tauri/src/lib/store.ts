@@ -10,6 +10,7 @@ export const snapshots = writable<ServiceSnapshot[]>([]);
 export const config = writable<AppConfig | null>(null);
 export const lastUpdated = writable<Date | null>(null);
 export const isRefreshing = writable<boolean>(false);
+
 // 移动端(Android/iOS):隐藏 quit、安全区 padding。init() 时从后端一次性读取。
 export const mobile = writable<boolean>(false);
 
