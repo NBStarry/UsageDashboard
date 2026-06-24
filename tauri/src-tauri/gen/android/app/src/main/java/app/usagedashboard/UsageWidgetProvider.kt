@@ -46,8 +46,20 @@ class UsageWidgetProvider : AppWidgetProvider() {
 
         private val WIN_ROW = intArrayOf(R.id.w_win0, R.id.w_win1, R.id.w_win2)
         private val WIN_LABEL = intArrayOf(R.id.w_win0_label, R.id.w_win1_label, R.id.w_win2_label)
+        private val WIN_RESET = intArrayOf(R.id.w_win0_reset, R.id.w_win1_reset, R.id.w_win2_reset)
         private val WIN_PCT = intArrayOf(R.id.w_win0_pct, R.id.w_win1_pct, R.id.w_win2_pct)
         private val WIN_BAR = intArrayOf(R.id.w_win0_bar, R.id.w_win1_bar, R.id.w_win2_bar)
+
+        // 重置倒计时:>=1 小时显示 "1h25m",否则 "25m";已过/无则空。
+        private fun countdown(resetMs: Long): String {
+            if (resetMs <= 0) return ""
+            val diff = resetMs - System.currentTimeMillis()
+            if (diff <= 0) return ""
+            val totalMin = (diff / 60000).toInt()
+            val h = totalMin / 60
+            val m = totalMin % 60
+            return if (h >= 1) "${h}h${m}m" else "${m}m"
+        }
 
         fun renderOne(context: Context, mgr: AppWidgetManager, id: Int) {
             val views = RemoteViews(context.packageName, R.layout.usage_widget)
@@ -138,6 +150,7 @@ class UsageWidgetProvider : AppWidgetProvider() {
                     val pct = w.optDouble("pct", 0.0).toInt().coerceIn(0, 100)
                     views.setViewVisibility(WIN_ROW[i], View.VISIBLE)
                     views.setTextViewText(WIN_LABEL[i], w.optString("label"))
+                    views.setTextViewText(WIN_RESET[i], countdown(w.optLong("resetAtMs", 0L)))
                     views.setTextViewText(WIN_PCT[i], "$pct%")
                     views.setTextColor(WIN_PCT[i], barColor(pct))
                     views.setProgressBar(WIN_BAR[i], 100, pct, false)

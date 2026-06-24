@@ -54,6 +54,10 @@
                     <TextView android:id="@+id/w_win0_label" android:layout_width="0dp"
                         android:layout_height="wrap_content" android:layout_weight="1"
                         android:text="" android:textColor="#C8C8CC" android:textSize="11sp" />
+                    <TextView android:id="@+id/w_win0_reset" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="" android:textColor="#6E6E73" android:textSize="9sp"
+                        android:paddingEnd="6dp" />
                     <TextView android:id="@+id/w_win0_pct" android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="" android:textColor="#FFFFFFFF" android:textSize="11sp"
@@ -75,6 +79,10 @@
                     <TextView android:id="@+id/w_win1_label" android:layout_width="0dp"
                         android:layout_height="wrap_content" android:layout_weight="1"
                         android:text="" android:textColor="#C8C8CC" android:textSize="11sp" />
+                    <TextView android:id="@+id/w_win1_reset" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="" android:textColor="#6E6E73" android:textSize="9sp"
+                        android:paddingEnd="6dp" />
                     <TextView android:id="@+id/w_win1_pct" android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="" android:textColor="#FFFFFFFF" android:textSize="11sp"
@@ -96,6 +104,10 @@
                     <TextView android:id="@+id/w_win2_label" android:layout_width="0dp"
                         android:layout_height="wrap_content" android:layout_weight="1"
                         android:text="" android:textColor="#C8C8CC" android:textSize="11sp" />
+                    <TextView android:id="@+id/w_win2_reset" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="" android:textColor="#6E6E73" android:textSize="9sp"
+                        android:paddingEnd="6dp" />
                     <TextView android:id="@+id/w_win2_pct" android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="" android:textColor="#FFFFFFFF" android:textSize="11sp"

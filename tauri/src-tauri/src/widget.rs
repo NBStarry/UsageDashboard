@@ -39,7 +39,13 @@ fn service_json(s: &ServiceSnapshot) -> Value {
                 let wins: Vec<Value> = usage
                     .windows
                     .iter()
-                    .map(|w| json!({ "label": w.label, "pct": w.pct }))
+                    .map(|w| {
+                        let mut wj = json!({ "label": w.label, "pct": w.pct });
+                        if let Some(r) = w.reset_at {
+                            wj["resetAtMs"] = json!(r.timestamp_millis());
+                        }
+                        wj
+                    })
                     .collect();
                 v["windows"] = json!(wins);
             }
