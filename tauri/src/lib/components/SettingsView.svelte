@@ -13,6 +13,7 @@
     saveCodexCredentials,
     setProxyUrl,
     requestPinWidget,
+    loginNewApi,
     refreshNow,
   } from '$lib/api';
   import type { BillingCategory, FetcherKind, ServiceConfig, UsageAlertRule } from '$lib/types';
@@ -90,6 +91,27 @@
   function displayIsEnabled(cfg: ServiceConfig, key: string): boolean {
     const d = cfg.display as unknown as Record<string, boolean>;
     return d[key] ?? false;
+  }
+
+  // New-API 网页登录:打开网关登录页,登录后原生端自动写入凭证文件。
+  // 需要先填 baseUrl(知道是哪个网关)。返回 app 后自动刷新(visibilitychange)。
+  async function onLoginNewApi(cfg: ServiceConfig) {
+    const f = credForms[cfg.id];
+    if (!f) return;
+    if (!cfg.credentialFile) {
+      f.ok = false; f.msg = '该服务未配置 credentialFile';
+      return;
+    }
+    if (!f.baseUrl.trim()) {
+      f.ok = false; f.msg = '请先填写网关地址 baseUrl';
+      return;
+    }
+    try {
+      await loginNewApi(f.baseUrl.trim(), cfg.credentialFile);
+      f.ok = true; f.msg = '已打开登录页,登录后自动获取';
+    } catch (e) {
+      f.ok = false; f.msg = `${e}`;
+    }
   }
 
   // --- HTTP 代理 ---
@@ -441,6 +463,10 @@
                 <div class="cred-form">
                   {#if kind === 'newAPI'}
                     <input class="cred-input" type="text" placeholder="网关地址 baseUrl" bind:value={f.baseUrl} />
+                    {#if $mobile}
+                      <button class="cred-login" onclick={() => onLoginNewApi(cfg)}>🔑 网页登录自动获取</button>
+                      <span class="hint">填好网关地址后点此 → 登录网关账号 → 自动生成并填入令牌(推荐)。也可在下方手动填。</span>
+                    {/if}
                     <input class="cred-input" type="password" placeholder="accessToken(系统访问令牌)" bind:value={f.accessToken} />
                     <div class="cred-row3">
                       <input class="cred-input" type="number" placeholder="userId(默认 0)" bind:value={f.userId} />
@@ -449,9 +475,11 @@
                     </div>
                   {:else if kind === 'claude'}
                     <input class="cred-input" type="password" placeholder="Claude accessToken(claudeAiOauth)" bind:value={f.accessToken} />
+                    <span class="hint">获取:电脑上 <code>claude login</code> 后,从 <code>~/.claude/.credentials.json</code> 复制 <code>claudeAiOauth.accessToken</code>(sk-ant-oat… 开头)。</span>
                   {:else if kind === 'codex'}
                     <input class="cred-input" type="password" placeholder="access_token" bind:value={f.accessToken} />
                     <input class="cred-input" type="text" placeholder="account_id" bind:value={f.accountId} />
+                    <span class="hint">获取:电脑上 <code>codex login</code> 后,从 <code>~/.codex/auth.json</code> 复制 <code>tokens.access_token</code> 与 <code>tokens.account_id</code>。</span>
                   {/if}
                   <div class="cred-actions">
                     <button class="cred-save" disabled={f.saving} onclick={() => onSaveCreds(cfg)}>
@@ -749,5 +777,25 @@
 .cred-msg {
   font-size: 10px;
   font-weight: 500;
+}
+
+/* New-API 网页登录按钮 */
+.cred-login {
+  align-self: flex-start;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  background: #34C759;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.hint code {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0 3px;
+  border-radius: 3px;
 }
 </style>

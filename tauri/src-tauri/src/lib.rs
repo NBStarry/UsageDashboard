@@ -23,6 +23,34 @@ use state::AppState;
 // 后台刷新定时器睡眠下限(秒),对齐 Swift 的 60s 地板。
 const MIN_REFRESH_SECONDS: u64 = 60;
 
+// Android: 由 MainActivity.onCreate 调用,把 Activity 传进来初始化 ndk_context
+// (Tauri 不用 ndk-glue,不会自动初始化;不初始化则 commands 里的 JNI 取 context 会 panic)。
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "system" fn Java_app_usagedashboard_MainActivity_nativeInit<'local>(
+    mut env: jni::JNIEnv<'local>,
+    _this: jni::objects::JObject<'local>,
+    context: jni::objects::JObject<'local>,
+) {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        let vm = match env.get_java_vm() {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+        let global = match env.new_global_ref(&context) {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let vm_ptr = vm.get_java_vm_pointer() as *mut core::ffi::c_void;
+        let ctx_ptr = global.as_raw() as *mut core::ffi::c_void;
+        // 泄漏全局引用,保持 context 进程级存活(ndk_context 只存裸指针)。
+        std::mem::forget(global);
+        unsafe { ndk_context::initialize_android_context(vm_ptr, ctx_ptr) };
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // WebView2 on Windows can fail to repaint regions after DOM changes while the
@@ -66,6 +94,7 @@ pub fn run() {
             commands::save_codex_credentials,
             commands::set_proxy_url,
             commands::request_pin_widget,
+            commands::login_new_api,
             commands::is_mobile,
             commands::quit,
         ])

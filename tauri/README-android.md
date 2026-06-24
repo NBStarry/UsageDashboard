@@ -135,7 +135,18 @@ npx tauri android build --debug --target aarch64
   设置页对每个 `newAPI` 服务提供"凭证录入"表单（baseUrl / accessToken / userId /
   quotaPerUnit / currency），保存走已有的 `save_new_api_credentials` 命令写入
   `config_dir()/<credentialFile>`，保存后自动 `refresh_now` 拉真实用量验证。
-  桌面端同样可用。表单不预填（后端不暴露读凭证命令，accessToken 敏感）。
+  桌面端同样可用。表单不预填（后端不暴露读凭证命令,accessToken 敏感）。
+  Claude/Codex 同样有录入表单(仅移动端,带"如何获取"引导文字)。
+- **New-API 网页登录自动获取（已做）**：`newAPI` 表单上有"🔑 网页登录自动获取"按钮——
+  填好 baseUrl 后点它,`login_new_api` 命令经 JNI 启动原生 `WebLoginActivity`(一个 WebView)
+  打开网关页;用户正常登录后,`onPageFinished` 注入 JS 从 localStorage 读 userId、调
+  `/api/user/token` 生成系统访问令牌,直接写入凭证文件。返回 app 时
+  `visibilitychange→visible` 自动 `refresh_now`。**不用手动复制令牌**。
+  > **JNI 取 Context 的坑**：Tauri 不用 ndk-glue,`ndk_context` 全局**不会自动初始化**,
+  > 直接 `ndk_context::android_context()` 会 panic 并 abort 整个进程(`request_pin_widget`
+  > 起初就因此崩)。修法:`MainActivity.onCreate` 调 Rust 导出的
+  > `Java_app_usagedashboard_MainActivity_nativeInit(context)`,用 `env.get_java_vm()` +
+  > 全局引用 `initialize_android_context`。之后 commands 里的 JNI 才能安全取 context。
 - **可写路径（移动端必需）**：`dirs::config_dir()` 在 Android 上解析成 `/.config`
   这类只读路径，写配置/凭证报 `EROFS (os error 30)`——这正是手机端"保存失败"的根因。
   `paths.rs` 加了一个运行期可注入的 base（`OnceLock`），`lib.rs` setup 里**仅移动端**

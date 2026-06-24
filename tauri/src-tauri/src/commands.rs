@@ -317,6 +317,104 @@ pub fn request_pin_widget() -> Result<bool, String> {
     Err("仅 Android 支持添加主屏小组件".to_string())
 }
 
+// 打开 New-API 网关网页登录(WebLoginActivity),登录后自动提取令牌写入凭证文件。
+// 经 JNI 用 action + setPackage 启动(只用 framework Intent 类,避开 JNI 找不到 app 类)。
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn login_new_api(
+    _state: State<'_, AppState>,
+    base_url: String,
+    credential_file: String,
+) -> Result<(), String> {
+    let clean = credential_file.trim();
+    if clean.is_empty() || std::path::Path::new(clean).is_absolute() || clean.contains("..") {
+        return Err("凭证文件名非法".to_string());
+    }
+    if base_url.trim().is_empty() {
+        return Err("请先填写网关地址 baseUrl".to_string());
+    }
+    let dir = config_dir();
+    fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败:{}", e))?;
+    let file_path = dir.join(clean).to_string_lossy().to_string();
+
+    use jni::objects::{JObject, JValue};
+    let ctx = ndk_context::android_context();
+    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| format!("vm:{e}"))?;
+    let mut env = vm.attach_current_thread().map_err(|e| format!("attach:{e}"))?;
+    let context = unsafe { JObject::from_raw(ctx.context().cast()) };
+
+    let action = env
+        .new_string("app.usagedashboard.LOGIN_NEWAPI")
+        .map_err(|e| e.to_string())?;
+    let intent = env
+        .new_object(
+            "android/content/Intent",
+            "(Ljava/lang/String;)V",
+            &[JValue::Object(&JObject::from(action))],
+        )
+        .map_err(|e| format!("intent:{e}"))?;
+
+    let pkg = env
+        .call_method(&context, "getPackageName", "()Ljava/lang/String;", &[])
+        .and_then(|v| v.l())
+        .map_err(|e| format!("pkg:{e}"))?;
+    env.call_method(
+        &intent,
+        "setPackage",
+        "(Ljava/lang/String;)Landroid/content/Intent;",
+        &[JValue::Object(&pkg)],
+    )
+    .map_err(|e| format!("setPackage:{e}"))?;
+    env.call_method(
+        &intent,
+        "addFlags",
+        "(I)Landroid/content/Intent;",
+        &[JValue::Int(0x1000_0000)], // FLAG_ACTIVITY_NEW_TASK
+    )
+    .map_err(|e| format!("addFlags:{e}"))?;
+
+    // putExtra("baseUrl", ...)
+    let k1 = env.new_string("baseUrl").map_err(|e| e.to_string())?;
+    let v1 = env.new_string(base_url.trim()).map_err(|e| e.to_string())?;
+    env.call_method(
+        &intent,
+        "putExtra",
+        "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;",
+        &[JValue::Object(&JObject::from(k1)), JValue::Object(&JObject::from(v1))],
+    )
+    .map_err(|e| format!("extra1:{e}"))?;
+    // putExtra("filePath", ...)
+    let k2 = env.new_string("filePath").map_err(|e| e.to_string())?;
+    let v2 = env.new_string(&file_path).map_err(|e| e.to_string())?;
+    env.call_method(
+        &intent,
+        "putExtra",
+        "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;",
+        &[JValue::Object(&JObject::from(k2)), JValue::Object(&JObject::from(v2))],
+    )
+    .map_err(|e| format!("extra2:{e}"))?;
+
+    env.call_method(
+        &context,
+        "startActivity",
+        "(Landroid/content/Intent;)V",
+        &[JValue::Object(&intent)],
+    )
+    .map_err(|e| format!("startActivity:{e}"))?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub fn login_new_api(
+    _state: State<'_, AppState>,
+    base_url: String,
+    credential_file: String,
+) -> Result<(), String> {
+    let _ = (base_url, credential_file);
+    Err("仅移动端支持网页登录".to_string())
+}
+
 // 前端据此切换移动端布局(隐藏 quit、安全区 padding)。
 // cfg!(mobile) 由 tauri-build 注入,Android/iOS 为 true,桌面为 false。
 #[tauri::command]

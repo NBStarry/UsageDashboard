@@ -83,6 +83,12 @@ export function requestPinWidget(): Promise<boolean> {
   return invoke('request_pin_widget');
 }
 
+// commands.rs login_new_api(base_url, credential_file) — Android: open gateway web
+// login; on success the native activity writes the credential file automatically.
+export function loginNewApi(baseUrl: string, credentialFile: string): Promise<void> {
+  return invoke('login_new_api', { baseUrl, credentialFile });
+}
+
 // commands.rs is_mobile() — true on Android/iOS, false on desktop.
 export function isMobile(): Promise<boolean> {
   return invoke('is_mobile');

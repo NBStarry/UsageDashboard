@@ -55,5 +55,17 @@
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>
         </activity>
+
+        <!-- New-API 网关网页登录(登录后自动提取令牌) -->
+        <activity
+            android:name=".WebLoginActivity"
+            android:exported="false"
+            android:label="网关登录"
+            android:theme="@style/Theme.usage_dashboard">
+            <intent-filter>
+                <action android:name="app.usagedashboard.LOGIN_NEWAPI" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

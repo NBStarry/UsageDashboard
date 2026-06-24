@@ -4,7 +4,7 @@
 
 import { writable } from 'svelte/store';
 import type { AppConfig, ServiceSnapshot } from '$lib/types';
-import { getSnapshots, getConfig, isMobile, onUsageUpdated, onConfigUpdated } from '$lib/api';
+import { getSnapshots, getConfig, isMobile, refreshNow, onUsageUpdated, onConfigUpdated } from '$lib/api';
 
 export const snapshots = writable<ServiceSnapshot[]>([]);
 export const config = writable<AppConfig | null>(null);
@@ -41,6 +41,15 @@ export async function init(): Promise<void> {
   await onConfigUpdated(async () => {
     await refreshConfig();
   });
+
+  // 回到前台时重新取数:打开 app 时刷新最新用量,也让"网页登录获取凭证"后返回自动生效。
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        refreshNow().catch(() => {});
+      }
+    });
+  }
 
   isRefreshing.set(true);
   try {
