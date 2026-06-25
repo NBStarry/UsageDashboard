@@ -245,8 +245,12 @@ impl AppState {
         if let Some(r) = relay.filter(|r| r.enabled) {
             match fetchers::fetch_relay(&r).await {
                 Ok(payload) => {
+                    let lu = payload.ts.as_deref()
+                        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                        .map(|dt| dt.with_timezone(&chrono::Utc))
+                        .unwrap_or_else(Utc::now);
                     self.apply_relay(payload.services);
-                    *self.last_updated.lock().unwrap() = Some(Utc::now());
+                    *self.last_updated.lock().unwrap() = Some(lu);
                     #[cfg(mobile)]
                     {
                         let snaps = self.snapshots();

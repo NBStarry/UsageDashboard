@@ -145,7 +145,7 @@
   // 从 Mac 拉用量:填 Mac 的中转地址 + 密钥,启用后手机直接显示 Mac 算好的数据。
   let relayUrl = $state('');
   let relaySecret = $state('');
-  let relayEnabled = $state(true);
+  let relayEnabled = $state(false);
   let relaySaving = $state(false);
   let relayMsg = $state('');
   let relaySynced = false;
