@@ -105,6 +105,6 @@ func relayPayloadJSON(states: [ServiceRuntime], lastUpdated: Date?) -> Data {
         ts: iso(lastUpdated),
         services: states.map { RelayService(config: mapConfig($0.config), status: mapStatus($0.status)) })
     let enc = JSONEncoder()
-    enc.outputFormatting = [.withoutEscapingSlashes, .prettyPrinted]
+    enc.outputFormatting = [.withoutEscapingSlashes]
     return (try? enc.encode(payload)) ?? Data("{\"services\":[]}".utf8)
 }

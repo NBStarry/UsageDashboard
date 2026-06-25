@@ -90,13 +90,9 @@ struct TokenUsageDashboardApp {
     }
 
     @MainActor
-    static func renderReadmeScreenshots() {
-        let baseURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("Docs/Images", isDirectory: true)
-        try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
-
+    static func makeSampleStates() -> [ServiceRuntime] {
         let now = Date()
-        let sampleStates = [
+        return [
             ServiceRuntime(
                 config: ServiceConfig(id: "claude", title: "Claude", accent: "#D97757",
                                       category: .subscription, fetcher: .claudeOAuth),
@@ -132,6 +128,15 @@ struct TokenUsageDashboardApp {
                 )), fetchedAt: now)
             ),
         ]
+    }
+
+    @MainActor
+    static func renderReadmeScreenshots() {
+        let baseURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Docs/Images", isDirectory: true)
+        try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
+
+        let sampleStates = makeSampleStates()
 
         let popover = ReadmePopoverPreview(states: sampleStates)
         renderPNG(popover, to: baseURL.appendingPathComponent("token-usage-dashboard-popover.png"))
@@ -147,47 +152,9 @@ struct TokenUsageDashboardApp {
 
     @MainActor
     static func printRelaySample() {
-        let now = Date()
-        let sampleStates = [
-            ServiceRuntime(
-                config: ServiceConfig(id: "claude", title: "Claude", accent: "#D97757",
-                                      category: .subscription, fetcher: .claudeOAuth),
-                status: .ok(Usage(plan: "Pro", windows: [
-                    UsageWindow(label: "5 小时", pct: 72, resetAt: now.addingTimeInterval(76 * 60)),
-                    UsageWindow(label: "周", pct: 48, resetAt: now.addingTimeInterval(3 * 24 * 60 * 60)),
-                ]), fetchedAt: now)
-            ),
-            ServiceRuntime(
-                config: ServiceConfig(id: "codex", title: "GPT", accent: "#10A37F",
-                                      category: .subscription, fetcher: .codexWham),
-                status: .ok(Usage(plan: "Plus", windows: [
-                    UsageWindow(label: "5 小时", pct: 63, resetAt: now.addingTimeInterval(124 * 60)),
-                    UsageWindow(label: "周", pct: 36, resetAt: now.addingTimeInterval(5 * 24 * 60 * 60)),
-                ]), fetchedAt: now)
-            ),
-            ServiceRuntime(
-                config: ServiceConfig(id: "phanrouter", title: "PhanRouter", accent: "#7C5CFC",
-                                      category: .apiUsage, fetcher: .newAPI,
-                                      credentialFile: "phanrouter.json"),
-                status: .ok(Usage(balance: BalanceInfo(
-                    balance: 18.42,
-                    used: 31.58,
-                    currency: "$",
-                    requestCount: 12864,
-                    models: [
-                        ModelEntry(name: "gpt-4.1", vendor: "OpenAI"),
-                        ModelEntry(name: "o3", vendor: "OpenAI"),
-                        ModelEntry(name: "claude-3.7-sonnet", vendor: "Anthropic"),
-                        ModelEntry(name: "gemini-2.5-pro", vendor: "Google"),
-                        ModelEntry(name: "deepseek-r1", vendor: "DeepSeek"),
-                    ]
-                )), fetchedAt: now)
-            ),
-        ]
-        let data = relayPayloadJSON(states: sampleStates, lastUpdated: now)
-        if let json = String(data: data, encoding: .utf8) {
-            print(json)
-        }
+        let sampleStates = makeSampleStates()
+        let data = relayPayloadJSON(states: sampleStates, lastUpdated: Date())
+        print(String(data: data, encoding: .utf8) ?? "")
     }
 
     @MainActor
