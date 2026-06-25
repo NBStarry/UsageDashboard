@@ -39,12 +39,26 @@ final class RelayServer: @unchecked Sendable {
         }
     }
 
+    private func isAuthorized(_ req: String) -> Bool {
+        let headerSection = req.components(separatedBy: "\r\n\r\n").first ?? req
+        for line in headerSection.components(separatedBy: "\r\n").dropFirst() {
+            let parts = line.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else { continue }
+            let name = parts[0].trimmingCharacters(in: .whitespaces).lowercased()
+            if name == "authorization" {
+                let value = parts[1].trimmingCharacters(in: .whitespaces)
+                return value == "Bearer \(settings.secret)"
+            }
+        }
+        return false
+    }
+
     private func route(_ req: String) -> Data {
         let firstLine = req.split(separator: "\r\n", maxSplits: 1).first.map(String.init) ?? ""
         let parts = firstLine.split(separator: " ")
         let method = parts.count > 0 ? String(parts[0]) : ""
         let path = parts.count > 1 ? String(parts[1]) : ""
-        let authed = req.range(of: "Authorization: Bearer \(settings.secret)") != nil
+        let authed = isAuthorized(req)
         if method == "GET" && path == "/usage" {
             if !authed { return httpResponse(401, "{\"error\":\"unauthorized\"}".data(using: .utf8)!) }
             return httpResponse(200, snapshotProvider())
