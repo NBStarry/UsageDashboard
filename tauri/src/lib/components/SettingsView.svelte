@@ -12,6 +12,7 @@
     saveClaudeCredentials,
     saveCodexCredentials,
     setProxyUrl,
+    setRelayConfig,
     requestPinWidget,
     loginNewApi,
     refreshNow,
@@ -137,6 +138,35 @@
       proxyMsg = `失败:${e}`;
     } finally {
       proxySaving = false;
+    }
+  }
+
+  // --- 手机中转 ---
+  // 从 Mac 拉用量:填 Mac 的中转地址 + 密钥,启用后手机直接显示 Mac 算好的数据。
+  let relayUrl = $state('');
+  let relaySecret = $state('');
+  let relayEnabled = $state(true);
+  let relaySaving = $state(false);
+  let relayMsg = $state('');
+  let relaySynced = false;
+  $effect(() => {
+    // 首次拿到 config 时预填 url 和 enabled;secret 不预填(敏感)。
+    if (!relaySynced && $config) {
+      relayUrl = $config.relay?.url ?? '';
+      relayEnabled = $config.relay?.enabled ?? false;
+      relaySynced = true;
+    }
+  });
+  async function onSaveRelay() {
+    relaySaving = true;
+    relayMsg = '';
+    try {
+      await setRelayConfig(relayUrl.trim(), relaySecret.trim(), relayEnabled);
+      relayMsg = relayEnabled ? '已连接,正在拉取…' : '已保存';
+    } catch (e) {
+      relayMsg = `失败:${e}`;
+    } finally {
+      relaySaving = false;
     }
   }
 
@@ -296,6 +326,25 @@
           {/if}
         </div>
         <span class="hint">国外接口(Claude/GPT)被墙时填代理;由代理按规则分流,国内接口不受影响。</span>
+      </div>
+    </div>
+
+    <!-- 手机中转:从 Mac 拉用量。url+secret 由 Mac 设置页二维码/文本提供 -->
+    <div class="panel">
+      <span class="label-semibold" style="font-size:12px;color:rgba(255,255,255,0.96);">手机中转（从 Mac 取用量）</span>
+      <div class="cred-form" style="margin-top:8px;">
+        <input class="cred-input" type="text" placeholder="Mac 地址 http://100.x.x.x:8787" bind:value={relayUrl} />
+        <input class="cred-input" type="text" placeholder="密钥 secret" bind:value={relaySecret} />
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,0.8);">
+          <input type="checkbox" bind:checked={relayEnabled} /> 启用中转模式
+        </label>
+        <div class="cred-actions">
+          <button class="cred-save" disabled={relaySaving} onclick={onSaveRelay}>
+            {relaySaving ? '连接中…' : '保存并连接'}
+          </button>
+          {#if relayMsg}<span class="cred-msg">{relayMsg}</span>{/if}
+        </div>
+        <span class="hint">需手机与 Mac 在同一 Tailscale 网络。启用后手机直接显示 Mac 算好的用量，不再本地取数。</span>
       </div>
     </div>
 
