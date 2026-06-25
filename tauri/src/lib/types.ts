@@ -77,12 +77,20 @@ export interface UsageAlertConfig {
   windows: string[] | null;
 }
 
+// models.rs: RelayConfig
+export interface RelayConfig {
+  url: string;
+  secret: string;
+  enabled: boolean;
+}
+
 // models.rs: AppConfig — refresh_seconds→refreshSeconds
 export interface AppConfig {
   refreshSeconds: number;
   alerts: UsageAlertConfig;
   services: ServiceConfig[];
   proxyUrl?: string | null;
+  relay?: RelayConfig | null;
 }
 
 // state.rs: ServiceStatus — discriminated union on `kind` (serde tag = "kind", rename_all = "camelCase")

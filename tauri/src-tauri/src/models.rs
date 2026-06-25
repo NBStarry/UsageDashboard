@@ -228,6 +228,16 @@ impl ServiceConfig {
     }
 }
 
+// relay 配置:手机端通过 relay 服务器中转取数请求。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelayConfig {
+    pub url: String,
+    pub secret: String,
+    #[serde(default)]
+    pub enabled: bool,
+}
+
 // 整体配置。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", from = "RawAppConfig")]
@@ -240,6 +250,9 @@ pub struct AppConfig {
     // 主要解决 GFW 下 Claude(api.anthropic.com)、Codex(chatgpt.com)无法直连。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_url: Option<String>,
+    // 可选 relay 服务器(手机端无法直连时经 relay 中转)。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relay: Option<RelayConfig>,
 }
 
 #[derive(Deserialize)]
@@ -253,6 +266,8 @@ struct RawAppConfig {
     services: Option<Vec<ServiceConfig>>,
     #[serde(default)]
     proxy_url: Option<String>,
+    #[serde(default)]
+    relay: Option<RelayConfig>,
 }
 
 impl From<RawAppConfig> for AppConfig {
@@ -264,6 +279,7 @@ impl From<RawAppConfig> for AppConfig {
                 .services
                 .unwrap_or_else(|| AppConfig::default().services),
             proxy_url: raw.proxy_url,
+            relay: raw.relay,
         }
     }
 }
@@ -274,6 +290,7 @@ impl Default for AppConfig {
             refresh_seconds: 300,
             alerts: UsageAlertConfig::default(),
             proxy_url: None,
+            relay: None,
             services: vec![
                 ServiceConfig::new(
                     "claude",
@@ -375,6 +392,17 @@ mod tests {
         assert!(a.enabled);
         assert_eq!(a.cooldown_seconds, 1800);
         assert_eq!(a.rule, UsageAlertRule::UsageExceedsElapsedWindowPercent);
+    }
+
+    #[test]
+    fn relay_config_roundtrips() {
+        let json = r#"{"refreshSeconds":300,"alerts":{},"services":[{"id":"claude","title":"Claude"}],"relay":{"url":"http://100.64.0.1:8787","secret":"abc","enabled":true}}"#;
+        let cfg: AppConfig = serde_json::from_str(json).unwrap();
+        let r = cfg.relay.clone().unwrap();
+        assert_eq!(r.url, "http://100.64.0.1:8787");
+        assert!(r.enabled);
+        let back = serde_json::to_string(&cfg).unwrap();
+        assert!(back.contains("\"relay\""));
     }
 
 }
