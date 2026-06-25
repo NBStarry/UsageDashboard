@@ -6,8 +6,9 @@ struct DisplaySettingsView: View {
     // 手机中转面板：显示地址 + 二维码，供手机扫码配置。
     private var relayPanel: some View {
         let s = RelayConfigStore.loadOrCreate()
-        let ip = TailscaleAddress.current() ?? "（未检测到 Tailscale）"
-        let isDetected = TailscaleAddress.current() != nil
+        let ipOpt = TailscaleAddress.current()
+        let isDetected = ipOpt != nil
+        let ip = ipOpt ?? "（未检测到 Tailscale）"
         let url = isDetected ? "http://\(ip):\(s.port)" : ip
         let payload = "{\"url\":\"http://\(ip):\(s.port)\",\"secret\":\"\(s.secret)\"}"
         return VStack(alignment: .leading, spacing: 8) {
