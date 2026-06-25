@@ -61,6 +61,7 @@ mod tests {
     use wiremock::matchers::{method, path, header};
 
     #[tokio::test]
+    #[serial]
     async fn returns_json_and_status() {
         let server = MockServer::start().await;
         Mock::given(method("GET")).and(path("/u")).and(header("x-test", "1"))
@@ -73,6 +74,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn surfaces_non_2xx_status() {
         let server = MockServer::start().await;
         Mock::given(method("GET")).and(path("/u"))
