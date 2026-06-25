@@ -240,6 +240,29 @@ impl AppState {
 
     // 全量刷新:对每个 enabled 服务并发取数,逐个 apply,触发通知,emit("usage-updated")。
     pub async fn refresh(&self, app: &AppHandle) {
+        // 中转模式:从 Mac 拉快照,跳过本地取数。
+        let relay = self.config.lock().unwrap().relay.clone();
+        if let Some(r) = relay.filter(|r| r.enabled) {
+            match fetchers::fetch_relay(&r).await {
+                Ok(payload) => {
+                    self.apply_relay(payload.services);
+                    *self.last_updated.lock().unwrap() = Some(Utc::now());
+                    #[cfg(mobile)]
+                    {
+                        let snaps = self.snapshots();
+                        let lu = *self.last_updated.lock().unwrap();
+                        crate::widget::write_snapshot(&snaps, lu);
+                    }
+                    let _ = app.emit("usage-updated", ());
+                }
+                Err(_e) => {
+                    // 保留上次中转快照;仅更新时间不动。前端继续显示旧数据。
+                    let _ = app.emit("usage-updated", ());
+                }
+            }
+            return;
+        }
+
         // 1) 锁取需要的 enabled 配置克隆,随即放锁。
         let services: Vec<ServiceConfig> = {
             let config = self.config.lock().unwrap();

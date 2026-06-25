@@ -415,6 +415,33 @@ pub fn login_new_api(
     Err("仅移动端支持网页登录".to_string())
 }
 
+// 设置中转 relay 配置(url, secret, enabled)。写入 config 后立即刷新。
+// enabled=true 时 url 和 secret 均必填;enabled=false 时仅持久化关闭状态。
+#[tauri::command]
+pub async fn set_relay_config(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    url: String,
+    secret: String,
+    enabled: bool,
+) -> Result<(), String> {
+    {
+        let mut cfg = state.config.lock().unwrap();
+        let u = url.trim();
+        if enabled && (u.is_empty() || secret.trim().is_empty()) {
+            return Err("中转地址和密钥必填".to_string());
+        }
+        cfg.relay = Some(crate::models::RelayConfig {
+            url: u.to_string(),
+            secret: secret.trim().to_string(),
+            enabled,
+        });
+    }
+    commit_config(&app, &state)?;
+    state.refresh(&app).await;
+    Ok(())
+}
+
 // 前端据此切换移动端布局(隐藏 quit、安全区 padding)。
 // cfg!(mobile) 由 tauri-build 注入,Android/iOS 为 true,桌面为 false。
 #[tauri::command]

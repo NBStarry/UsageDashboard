@@ -93,6 +93,7 @@ pub fn run() {
             commands::save_claude_credentials,
             commands::save_codex_credentials,
             commands::set_proxy_url,
+            commands::set_relay_config,
             commands::request_pin_widget,
             commands::login_new_api,
             commands::is_mobile,

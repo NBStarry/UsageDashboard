@@ -78,6 +78,11 @@ export function setProxyUrl(url: string): Promise<void> {
   return invoke('set_proxy_url', { url });
 }
 
+// commands.rs set_relay_config(url, secret, enabled)
+export function setRelayConfig(url: string, secret: string, enabled: boolean): Promise<void> {
+  return invoke('set_relay_config', { url, secret, enabled });
+}
+
 // commands.rs request_pin_widget() — Android: prompt to pin the home-screen widget
 export function requestPinWidget(): Promise<boolean> {
   return invoke('request_pin_widget');
