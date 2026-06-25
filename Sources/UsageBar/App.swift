@@ -39,6 +39,23 @@ struct TokenUsageDashboardApp {
             printRelaySample()
             return
         }
+        // 调试:启动 NWListener HTTP 中继服务器（GET /usage，Bearer 校验）。
+        if args.count >= 2, args[1] == "--serve" {
+            let s = RelayConfigStore.loadOrCreate()
+            // snapshotProvider 在 NWListener 后台队列中被调用，
+            // 需要将 @MainActor 函数调用 dispatch 到主线程同步获取结果。
+            let srv = RelayServer(settings: s, snapshotProvider: {
+                var result = Data()
+                DispatchQueue.main.sync {
+                    result = relayPayloadJSON(states: makeSampleStates(), lastUpdated: Date())
+                }
+                return result
+            })
+            srv.start()
+            print("listening \(s.port)")
+            RunLoop.main.run()
+            return
+        }
 
         let app = NSApplication.shared
         let delegate = AppDelegate()
