@@ -19,3 +19,14 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# UsageDashboard: 保留全部 app 类不被混淆/裁剪。
+# 原因:
+#  - MainActivity.nativeInit 由 Rust 用 JNI 符号名 Java_app_usagedashboard_MainActivity_nativeInit
+#    按名查找,类/方法名被改名就找不到 -> ndk_context 不初始化 -> 首启 panic。
+#  - WebLoginActivity 由 action intent 字符串 app.usagedashboard.LOGIN_NEWAPI 启动,
+#    UsageWidgetProvider/WidgetConfigActivity 经 manifest+SharedPreferences 反射式使用。
+-keep class app.usagedashboard.** { *; }
+-keepclasseswithmembernames class * {
+    native <methods>;
+}

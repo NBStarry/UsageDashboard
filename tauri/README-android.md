@@ -122,6 +122,33 @@ npx tauri android build --debug --target aarch64
 （`ANDROID_HOME` / `NDK_HOME` 已持久化到 Windows User 环境变量，新终端无需再 export；
 此处显式写出是为可复制。境外网络可去掉代理两行。）
 
+### Release 签名包（体积小、可装真机/上架）
+
+去掉 `--debug --target aarch64`（默认全架构 release + minify）：
+```bash
+npx tauri android build        # 其余环境变量同上
+```
+产物：
+- `app/build/outputs/apk/universal/release/app-universal-release.apk`（~48MB，直接装机）
+- `app/build/outputs/bundle/universalRelease/app-universal-release.aab`（~20MB，上架 Play）
+
+**签名配置**（已接好，不入库的密钥需本机/各机各自准备）：
+- `app/build.gradle.kts` 的 `signingConfigs.release` 从 `gen/android/keystore.properties` 读
+  `storeFile`/`storePassword`/`keyAlias`/`keyPassword`，release buildType 引用它。
+- keystore 与 `keystore.properties` 均 **gitignore**（`*.jks` / `*.keystore` / `keystore.properties`）——
+  密钥绝不入库。换机器构建 release 前需先放好这两份文件（密码私下保管，丢了无法给同一
+  applicationId 发更新）。
+- 生成 keystore：
+  ```bash
+  keytool -genkeypair -v -keystore upload-keystore.jks -alias upload \
+    -keyalg RSA -keysize 2048 -validity 10000 \
+    -storepass <PW> -keypass <PW> -dname "CN=UsageDashboard, O=UsageDashboard, C=CN"
+  ```
+- **ProGuard**：release 开了 `isMinifyEnabled`。`app/proguard-rules.pro` 必须 keep 住
+  `app.usagedashboard.**` 和 native 方法名——否则混淆会改掉 `MainActivity`/`nativeInit`，
+  Rust 按 JNI 符号名 `Java_app_usagedashboard_MainActivity_nativeInit` 找不到 → ndk_context
+  不初始化 → 首启 panic（同理 `WebLoginActivity` 靠 action intent 字符串启动，也需保留）。
+
 ## 4. 移动端适配（已做）
 
 平台判定走 Rust `is_mobile` 命令（`cfg!(mobile)`，由 tauri-build 注入），前端
