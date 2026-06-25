@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_notification::NotificationExt;
 
@@ -21,7 +21,7 @@ use crate::fetchers;
 use crate::models::{AppConfig, ServiceConfig, Usage};
 
 // 单个服务的运行态。带内部 `kind` tag 供前端区分。
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ServiceStatus {
     Loading,
@@ -45,11 +45,18 @@ pub enum ServiceStatus {
 }
 
 // 前端列表项:配置 + 状态。
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServiceSnapshot {
     pub config: ServiceConfig,
     pub status: ServiceStatus,
+}
+
+// relay 模式下从 Mac 拉取的中转快照(契约 JSON 顶层结构)。
+#[derive(Debug, Clone, Deserialize)]
+pub struct RelayPayload {
+    pub ts: Option<String>,
+    pub services: Vec<ServiceSnapshot>,
 }
 
 pub struct AppState {
@@ -58,6 +65,7 @@ pub struct AppState {
     pub last_alert_at: Mutex<HashMap<String, DateTime<Utc>>>,
     pub active_alert_keys: Mutex<HashMap<String, HashSet<String>>>,
     pub last_updated: Mutex<Option<DateTime<Utc>>>,
+    pub relay_snapshots: Mutex<Option<Vec<ServiceSnapshot>>>,
 }
 
 impl AppState {
@@ -84,11 +92,34 @@ impl AppState {
             last_alert_at: Mutex::new(HashMap::new()),
             active_alert_keys: Mutex::new(HashMap::new()),
             last_updated: Mutex::new(None),
+            relay_snapshots: Mutex::new(None),
         }
+    }
+
+    // relay 模式是否启用。
+    fn relay_enabled(&self) -> bool {
+        self.config
+            .lock()
+            .unwrap()
+            .relay
+            .as_ref()
+            .map(|r| r.enabled)
+            .unwrap_or(false)
+    }
+
+    // 将中转快照写入 relay_snapshots。
+    pub fn apply_relay(&self, services: Vec<ServiceSnapshot>) {
+        *self.relay_snapshots.lock().unwrap() = Some(services);
     }
 
     // 按 config 顺序、仅 enabled 输出快照;状态缺失时用 cache→Stale("加载中…") 或 Loading。
     pub fn snapshots(&self) -> Vec<ServiceSnapshot> {
+        // relay 模式:若已有中转快照直接返回,跳过本地取数结果。
+        if self.relay_enabled() {
+            if let Some(s) = self.relay_snapshots.lock().unwrap().clone() {
+                return s;
+            }
+        }
         let config = self.config.lock().unwrap();
         let statuses = self.statuses.lock().unwrap();
         config
@@ -348,6 +379,21 @@ impl AppState {
 mod tests {
     use super::*;
     use serial_test::serial;
+
+    #[test]
+    #[serial]
+    fn deserialize_relay_payload() {
+        let json = r##"{"ts":"2026-06-25T05:56:00Z","services":[
+          {"config":{"id":"claude","title":"Claude","accent":"#D97757","category":"subscription","fetcher":"claudeOauth","credentialFile":null,"enabled":true,
+            "display":{"plan":true,"fiveHour":true,"weekly":true,"resetCountdown":true,"updatedAt":true,"balance":true,"used":true,"requestCount":true,"models":true}},
+           "status":{"kind":"ok","usage":{"plan":null,"windows":[{"label":"周","pct":35,"resetAt":null}],"balance":null},"fetchedAt":"2026-06-25T05:56:00Z"}}]}"##;
+        let p: RelayPayload = serde_json::from_str(json).unwrap();
+        assert_eq!(p.services.len(), 1);
+        match &p.services[0].status {
+            ServiceStatus::Ok { usage, .. } => assert_eq!(usage.windows[0].pct, 35.0),
+            _ => panic!("expected ok"),
+        }
+    }
 
     #[test]
     #[serial]

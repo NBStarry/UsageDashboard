@@ -324,7 +324,7 @@ impl Default for AppConfig {
 // ---- 运行态(供前端消费) ----
 
 // 归一化后的单个用量窗口(5 小时 / 周)。
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageWindow {
     pub label: String,
@@ -333,7 +333,7 @@ pub struct UsageWindow {
 }
 
 // 模型广场里的一个模型(用于按来源/厂商分类展示)。
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelEntry {
     pub name: String,
@@ -341,7 +341,7 @@ pub struct ModelEntry {
 }
 
 // 余额型服务(PhanRouter 等 New-API 网关)的归一化数据。
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BalanceInfo {
     pub balance: f64,
@@ -352,7 +352,7 @@ pub struct BalanceInfo {
 }
 
 // 一个服务的归一化用量。windows 用于用量窗口型(Claude/GPT),balance 用于余额型(PhanRouter)。
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Usage {
     pub plan: Option<String>,

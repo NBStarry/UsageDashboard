@@ -367,6 +367,27 @@ pub fn infer_vendor(model: &str) -> String {
     "其他".to_string()
 }
 
+// ─── relay 中转取数 ────────────────────────────────────────────
+
+// 从 Mac 中转服务器拉取契约 JSON 快照。复用 http::get_json(含代理处理)。
+pub async fn fetch_relay(
+    relay: &crate::models::RelayConfig,
+) -> Result<crate::state::RelayPayload, String> {
+    let url = format!("{}/usage", relay.url.trim_end_matches('/'));
+    let bearer = format!("Bearer {}", relay.secret);
+    let (value, status) = crate::http::get_json(&url, &[("Authorization", &bearer)])
+        .await
+        .map_err(|e| format!("连接 Mac 中转失败:{e}"))?;
+    if status == 401 {
+        return Err("中转密钥无效,请重新扫码".to_string());
+    }
+    if !(200..300).contains(&status) {
+        return Err(format!("中转返回 HTTP {}", status));
+    }
+    serde_json::from_value::<crate::state::RelayPayload>(value)
+        .map_err(|e| format!("中转数据格式异常:{e}"))
+}
+
 // ─── 网络入口 ──────────────────────────────────────────────────
 
 pub async fn fetch_service(cfg: &ServiceConfig) -> Result<Usage, String> {
