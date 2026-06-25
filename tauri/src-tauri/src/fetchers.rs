@@ -369,13 +369,14 @@ pub fn infer_vendor(model: &str) -> String {
 
 // ─── relay 中转取数 ────────────────────────────────────────────
 
-// 从 Mac 中转服务器拉取契约 JSON 快照。复用 http::get_json(含代理处理)。
+// 从 Mac 中转服务器拉取契约 JSON 快照。
+// 使用 get_json_direct 绕过 GFW 代理——relay 是 Tailscale 私网直连,不该走代理。
 pub async fn fetch_relay(
     relay: &crate::models::RelayConfig,
 ) -> Result<crate::state::RelayPayload, String> {
     let url = format!("{}/usage", relay.url.trim_end_matches('/'));
     let bearer = format!("Bearer {}", relay.secret);
-    let (value, status) = crate::http::get_json(&url, &[("Authorization", &bearer)])
+    let (value, status) = crate::http::get_json_direct(&url, &[("Authorization", &bearer)])
         .await
         .map_err(|e| format!("连接 Mac 中转失败:{e}"))?;
     if status == 401 {

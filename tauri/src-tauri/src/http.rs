@@ -37,9 +37,26 @@ pub async fn get_json(url: &str, headers: &[(&str, &str)]) -> Result<(serde_json
     Ok((value, status))
 }
 
+// 直连(忽略全局代理)版 get_json。用于 relay 等私网/局域网(Tailscale)请求——不该走 GFW 代理。
+pub async fn get_json_direct(url: &str, headers: &[(&str, &str)]) -> Result<(serde_json::Value, u16), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(12))
+        .build()
+        .map_err(|e| format!("客户端初始化失败:{e}"))?;
+    let mut req = client.get(url);
+    for (k, v) in headers { req = req.header(*k, *v); }
+    let resp = req.send().await.map_err(|e| format!("网络错误:{e}"))?;
+    let status = resp.status().as_u16();
+    let bytes = resp.bytes().await.map_err(|e| format!("网络错误:{e}"))?;
+    let value = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .map_err(|_| "接口返回无法解析".to_string())?;
+    Ok((value, status))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use wiremock::{Mock, MockServer, ResponseTemplate};
     use wiremock::matchers::{method, path, header};
 
@@ -64,5 +81,20 @@ mod tests {
         let url = format!("{}/u", server.uri());
         let (_v, status) = get_json(&url, &[]).await.unwrap();
         assert_eq!(status, 401);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn get_json_direct_ignores_proxy() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET")).and(path("/u"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok":true})))
+            .mount(&server).await;
+        // 设一个指向黑洞的代理:若 get_json_direct 误走代理会连不上
+        set_proxy(Some("http://127.0.0.1:9".to_string()));
+        let (v, status) = get_json_direct(&format!("{}/u", server.uri()), &[]).await.unwrap();
+        assert_eq!(status, 200);
+        assert_eq!(v["ok"], serde_json::json!(true));
+        set_proxy(None);
     }
 }
