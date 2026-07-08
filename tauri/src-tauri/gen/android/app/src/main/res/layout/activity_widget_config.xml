@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#141416"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="选择要在此小组件显示的渠道"
+        android:textColor="#FFFFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:paddingBottom="12dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="显示大小"
+        android:textColor="#8E8E93"
+        android:textSize="12sp"
+        android:paddingBottom="6dp" />
+
+    <RadioGroup
+        android:id="@+id/config_style"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingBottom="16dp">
+
+        <RadioButton
+            android:id="@+id/style_compact"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="紧凑"
+            android:textColor="#D8D8DA"
+            android:textSize="13sp"
+            android:buttonTint="#7C5CFC" />
+
+        <RadioButton
+            android:id="@+id/style_standard"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="标准"
+            android:textColor="#D8D8DA"
+            android:textSize="13sp"
+            android:buttonTint="#7C5CFC" />
+
+        <RadioButton
+            android:id="@+id/style_large"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="大字"
+            android:textColor="#FFFFFFFF"
+            android:textSize="13sp"
+            android:buttonTint="#7C5CFC"
+            android:checked="true" />
+    </RadioGroup>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+        <LinearLayout
+            android:id="@+id/config_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+    <TextView
+        android:id="@+id/config_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="#8E8E93"
+        android:textSize="12sp"
+        android:paddingTop="10dp" />
+
+</LinearLayout>

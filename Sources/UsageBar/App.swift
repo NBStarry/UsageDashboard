@@ -39,6 +39,28 @@ struct TokenUsageDashboardApp {
             dumpAlerts()
             return
         }
+        // 调试:用模拟快照打印 relay JSON 到 stdout(核对契约形状)。
+        if args.count >= 2, args[1] == "--relay-sample" {
+            printRelaySample()
+            return
+        }
+        // 调试:启动 NWListener HTTP 中继服务器（GET /usage，Bearer 校验）。
+        if args.count >= 2, args[1] == "--serve" {
+            let s = RelayConfigStore.loadOrCreate()
+            // snapshotProvider 在 NWListener 后台队列中被调用，
+            // 需要将 @MainActor 函数调用 dispatch 到主线程同步获取结果。
+            let srv = RelayServer(settings: s, snapshotProvider: {
+                var result = Data()
+                DispatchQueue.main.sync {
+                    result = relayPayloadJSON(states: makeSampleStates(), lastUpdated: Date())
+                }
+                return result
+            })
+            srv.start()
+            print("listening \(s.port)")
+            RunLoop.main.run()
+            return
+        }
 
         let app = NSApplication.shared
         let delegate = AppDelegate()
@@ -90,13 +112,9 @@ struct TokenUsageDashboardApp {
     }
 
     @MainActor
-    static func renderReadmeScreenshots() {
-        let baseURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("Docs/Images", isDirectory: true)
-        try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
-
+    static func makeSampleStates() -> [ServiceRuntime] {
         let now = Date()
-        let sampleStates = [
+        return [
             ServiceRuntime(
                 config: ServiceConfig(id: "claude", title: "Claude", accent: "#D97757",
                                       category: .subscription, fetcher: .claudeOAuth),
@@ -106,7 +124,7 @@ struct TokenUsageDashboardApp {
                 ]), fetchedAt: now)
             ),
             ServiceRuntime(
-                config: ServiceConfig(id: "codex", title: "GPT", accent: "#10A37F",
+                config: ServiceConfig(id: "codex", title: "Codex", accent: "#10A37F",
                                       category: .subscription, fetcher: .codexWham),
                 status: .ok(Usage(plan: "Plus", windows: [
                     UsageWindow(label: "5 小时", pct: 63, resetAt: now.addingTimeInterval(124 * 60)),
@@ -132,6 +150,15 @@ struct TokenUsageDashboardApp {
                 )), fetchedAt: now)
             ),
         ]
+    }
+
+    @MainActor
+    static func renderReadmeScreenshots() {
+        let baseURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Docs/Images", isDirectory: true)
+        try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
+
+        let sampleStates = makeSampleStates()
 
         let popover = ReadmePopoverPreview(states: sampleStates)
         renderPNG(popover, to: baseURL.appendingPathComponent("token-usage-dashboard-popover.png"))
@@ -143,6 +170,13 @@ struct TokenUsageDashboardApp {
         renderPNG(settings, to: baseURL.appendingPathComponent("token-usage-dashboard-settings.png"))
 
         print("已生成 README 截图: \(baseURL.path)")
+    }
+
+    @MainActor
+    static func printRelaySample() {
+        let sampleStates = makeSampleStates()
+        let data = relayPayloadJSON(states: sampleStates, lastUpdated: Date())
+        print(String(data: data, encoding: .utf8) ?? "")
     }
 
     @MainActor
@@ -284,7 +318,7 @@ private struct ReadmeSettingsPreview: View {
 
                 serviceRow(title: "Claude", type: "订阅号", color: Color(hex: "#D97757"),
                            items: ["套餐", "5 小时", "周额度", "重置倒计时", "更新时间"])
-                serviceRow(title: "GPT", type: "订阅号", color: Color(hex: "#10A37F"),
+                serviceRow(title: "Codex", type: "订阅号", color: Color(hex: "#10A37F"),
                            items: ["套餐", "5 小时", "周额度", "更新时间"])
                 serviceRow(title: "PhanRouter", type: "API 用量", color: Color(hex: "#7C5CFC"),
                            items: ["当前余额", "历史消耗", "请求次数", "模型列表"])

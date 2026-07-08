@@ -3,3 +3,12 @@
 *.app/
 *.xcuserstate
 *.swp
+
+# Swift 单文件编译残留(swiftc 直编时生成,应统一用 swift build)
+*.o
+*.d
+*.swiftdeps
+*.swiftdeps~
+
+# Android release/debug package copies for local handoff.
+release-apks/

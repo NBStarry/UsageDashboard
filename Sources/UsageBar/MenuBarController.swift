@@ -9,6 +9,12 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
     private let store: UsageStore
     private var cancellables = Set<AnyCancellable>()
 
+    // 手机中转服务
+    private var relayServer: RelayServer?
+    // 线程安全缓存：snapshotProvider 从后台线程调用，主线程负责写入。
+    private let relayCache = NSLock()
+    private var relayJSON: Data = Data("{\"services\":[]}".utf8)
+
     init(store: UsageStore) {
         self.store = store
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -37,6 +43,32 @@ final class MenuBarController: NSObject, NSPopoverDelegate {
         // 让 popover 随 SwiftUI 内容(如展开模型列表)自动调整大小,否则内容会被截断。
         host.sizingOptions = [.preferredContentSize]
         popover.contentViewController = host
+
+        // 手机中转服务：启动 RelayServer，snapshotProvider 只读缓存（线程安全）。
+        let relaySettings = RelayConfigStore.loadOrCreate()
+        // 启动时先算一次初值（主线程，states 已就绪）。
+        relayJSON = relayPayloadJSON(states: store.states, lastUpdated: store.lastUpdated)
+        // 订阅 states 变化，在主线程更新缓存。
+        store.$states
+            .combineLatest(store.$lastUpdated)
+            .sink { [weak self] states, lastUpdated in
+                guard let self else { return }
+                let data = relayPayloadJSON(states: states, lastUpdated: lastUpdated)
+                self.relayCache.lock()
+                self.relayJSON = data
+                self.relayCache.unlock()
+            }
+            .store(in: &cancellables)
+        relayServer = RelayServer(settings: relaySettings, snapshotProvider: { [weak self] in
+            self?.currentRelayJSON() ?? Data("{\"services\":[]}".utf8)
+        })
+        relayServer?.start()
+    }
+
+    private func currentRelayJSON() -> Data {
+        relayCache.lock()
+        defer { relayCache.unlock() }
+        return relayJSON
     }
 
     @objc private func handleClick(_ sender: Any?) {

@@ -3,8 +3,47 @@ import SwiftUI
 struct DisplaySettingsView: View {
     @EnvironmentObject var store: UsageStore
 
+    // 手机中转面板：显示地址 + 二维码，供手机扫码配置。
+    private var relayPanel: some View {
+        let s = RelayConfigStore.loadOrCreate()
+        let ipOpt = TailscaleAddress.current()
+        let isDetected = ipOpt != nil
+        let ip = ipOpt ?? "（未检测到 Tailscale）"
+        let url = isDetected ? "http://\(ip):\(s.port)" : ip
+        let payload = "{\"url\":\"http://\(ip):\(s.port)\",\"secret\":\"\(s.secret)\"}"
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("手机中转")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.white.opacity(0.92))
+            Text(url)
+                .font(.system(size: 11))
+                .foregroundColor(.white.opacity(0.8))
+                .textSelection(.enabled)
+            if isDetected, let img = qrImage(payload) {
+                Image(nsImage: img)
+                    .resizable()
+                    .interpolation(.none)
+                    .frame(width: 140, height: 140)
+            }
+            Text("手机端扫码配置（需同一 Tailscale 网络）")
+                .font(.system(size: 10))
+                .foregroundColor(.white.opacity(0.55))
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.black.opacity(0.24))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                )
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            relayPanel
+
             AlertSettingsView()
 
             Text("渠道商")

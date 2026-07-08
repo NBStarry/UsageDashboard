@@ -92,7 +92,7 @@ struct BalanceInfo {
     }
 }
 
-// 一个服务的归一化用量。windows 用于用量窗口型(Claude/GPT),balance 用于余额型(PhanRouter)。
+// 一个服务的归一化用量。windows 用于用量窗口型(Claude/Codex),balance 用于余额型(PhanRouter)。
 struct Usage {
     let plan: String?
     let windows: [UsageWindow]
@@ -392,7 +392,7 @@ struct ServiceDisplayOptions: Codable, Equatable {
 // 单个服务的配置(由 config.json 控制显示/顺序/颜色/内容项)。
 struct ServiceConfig: Codable, Identifiable {
     let id: String          // "claude" | "codex"
-    let title: String       // "Claude" / "GPT"
+    let title: String       // "Claude" / "Codex"
     let accent: String      // "#RRGGBB"
     var category: BillingCategory
     var fetcher: FetcherKind
@@ -481,7 +481,7 @@ struct AppConfig: Codable {
         services: [
             ServiceConfig(id: "claude", title: "Claude", accent: "#D97757",
                           category: .subscription, fetcher: .claudeOAuth),
-            ServiceConfig(id: "codex", title: "GPT", accent: "#10A37F",
+            ServiceConfig(id: "codex", title: "Codex", accent: "#10A37F",
                           category: .subscription, fetcher: .codexWham),
             ServiceConfig(id: "phanrouter", title: "PhanRouter", accent: "#7C5CFC",
                           category: .apiUsage, fetcher: .newAPI,
