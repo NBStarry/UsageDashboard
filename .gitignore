@@ -12,3 +12,6 @@
 
 # Android release/debug package copies for local handoff.
 release-apks/
+
+# Local file-sync conflict copies.
+*.sync-conflict-*
