@@ -1,4 +1,7 @@
 import java.util.Properties
+import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 plugins {
     id("com.android.application")
@@ -25,7 +28,7 @@ android {
     compileSdk = 36
     namespace = "app.usagedashboard"
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "app.usagedashboard"
         minSdk = 24
         targetSdk = 36
@@ -85,6 +88,67 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")
+}
+
+val androidArtifactStamp: String =
+    System.getenv("USAGE_DASHBOARD_ANDROID_ARTIFACT_STAMP")
+        ?: LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+val androidArtifactRoot: File = rootProject.file("../../../../release-apks")
+val androidArtifactDir: File = File(androidArtifactRoot, androidArtifactStamp)
+val androidLatestArtifactDir: File = File(androidArtifactRoot, "latest")
+
+val collectAndroidArtifacts = tasks.register("collectAndroidArtifacts") {
+    group = "build"
+    description = "Copy built APK/AAB artifacts to release-apks/<timestamp> and release-apks/latest."
+
+    doLast {
+        val outputRoot = layout.buildDirectory.dir("outputs").get().asFile
+        val artifacts = fileTree(outputRoot) {
+            include("apk/**/*.apk")
+            include("bundle/**/*.aab")
+        }.files.sortedWith(compareBy<File> { it.extension }.thenBy { it.name })
+
+        if (artifacts.isEmpty()) {
+            logger.lifecycle("No Android APK/AAB artifacts found under ${outputRoot.absolutePath}")
+            return@doLast
+        }
+
+        androidArtifactDir.mkdirs()
+        if (androidLatestArtifactDir.exists()) {
+            androidLatestArtifactDir.deleteRecursively()
+        }
+        androidLatestArtifactDir.mkdirs()
+
+        val manifest = buildString {
+            appendLine("UsageDashboard Android artifacts")
+            appendLine("Created: ${LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)}")
+            appendLine("Archive: ${androidArtifactDir.absolutePath}")
+            appendLine()
+            appendLine("Files:")
+            for (source in artifacts) {
+                val dest = File(androidArtifactDir, source.name)
+                val latestDest = File(androidLatestArtifactDir, source.name)
+                source.copyTo(dest, overwrite = true)
+                source.copyTo(latestDest, overwrite = true)
+                appendLine("- ${source.name}")
+                appendLine("  source: ${source.absolutePath}")
+                appendLine("  size: ${source.length()} bytes")
+            }
+        }
+
+        File(androidArtifactDir, "README.txt").writeText(manifest)
+        File(androidLatestArtifactDir, "README.txt").writeText(manifest)
+        File(androidArtifactRoot, "LATEST.txt").writeText(androidArtifactDir.absolutePath + System.lineSeparator())
+        logger.lifecycle("Copied Android artifacts to ${androidArtifactDir.absolutePath}")
+        logger.lifecycle("Latest Android artifacts are also in ${androidLatestArtifactDir.absolutePath}")
+    }
+}
+
+tasks.matching {
+    (it.name.startsWith("assemble") || it.name.startsWith("bundle") || it.name.startsWith("package")) &&
+        (it.name.endsWith("Debug") || it.name.endsWith("Release"))
+}.configureEach {
+    finalizedBy(collectAndroidArtifacts)
 }
 
 apply(from = "tauri.build.gradle.kts")

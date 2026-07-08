@@ -9,10 +9,74 @@ use serde_json::{json, Value};
 use crate::paths::home_dir;
 use crate::state::{ServiceSnapshot, ServiceStatus};
 
+#[cfg(target_os = "android")]
+fn notify_android_widgets() {
+    use jni::objects::{JObject, JValue};
+
+    let ctx = ndk_context::android_context();
+    let vm = match unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) } {
+        Ok(vm) => vm,
+        Err(_) => return,
+    };
+    let mut env = match vm.attach_current_thread() {
+        Ok(env) => env,
+        Err(_) => return,
+    };
+    let context = unsafe { JObject::from_raw(ctx.context().cast()) };
+
+    for provider in [
+        "app.usagedashboard.UsageWidgetProvider",
+        "app.usagedashboard.UsageDoubleWidgetProvider",
+    ] {
+        let action = match env.new_string("app.usagedashboard.WIDGET_RENDER") {
+            Ok(action) => action,
+            Err(_) => continue,
+        };
+        let action_obj = JObject::from(action);
+        let intent = match env.new_object(
+            "android/content/Intent",
+            "(Ljava/lang/String;)V",
+            &[JValue::Object(&action_obj)],
+        ) {
+            Ok(intent) => intent,
+            Err(_) => continue,
+        };
+
+        let class_name = match env.new_string(provider) {
+            Ok(class_name) => class_name,
+            Err(_) => continue,
+        };
+        let class_name_obj = JObject::from(class_name);
+        if env
+            .call_method(
+                &intent,
+                "setClassName",
+                "(Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;",
+                &[JValue::Object(&context), JValue::Object(&class_name_obj)],
+            )
+            .is_err()
+        {
+            continue;
+        }
+
+        let _ = env.call_method(
+            &context,
+            "sendBroadcast",
+            "(Landroid/content/Intent;)V",
+            &[JValue::Object(&intent)],
+        );
+    }
+}
+
 fn service_json(s: &ServiceSnapshot) -> Value {
+    let title = if s.config.id == "codex" {
+        "Codex"
+    } else {
+        s.config.title.as_str()
+    };
     let mut v = json!({
         "id": s.config.id,
-        "title": s.config.title,
+        "title": title,
         "accent": s.config.accent,
     });
     match &s.status {
@@ -59,6 +123,9 @@ pub fn write_snapshot(snapshots: &[ServiceSnapshot], last_updated: Option<DateTi
     let services: Vec<Value> = snapshots.iter().map(service_json).collect();
     let doc = json!({ "updatedAtMs": updated_ms, "services": services });
     if let Some(home) = home_dir() {
-        let _ = std::fs::write(home.join("widget.json"), doc.to_string());
+        if std::fs::write(home.join("widget.json"), doc.to_string()).is_ok() {
+            #[cfg(target_os = "android")]
+            notify_android_widgets();
+        }
     }
 }

@@ -1,145 +1,160 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 单服务小组件。外层透明容器居中,内层深色卡片 wrap_content 只包住内容——
-     这样卡片只有内容那么高,单元格里多出的部分露出壁纸而非黑块。
-     RemoteViews 兼容:LinearLayout / TextView / ProgressBar。 -->
+<!-- 单服务小组件。根视图直接作为卡片填满桌面分配区域,避免 wrap_content
+     卡片在 2 行小组件里留下大块透明空白。RemoteViews 兼容:
+     LinearLayout / TextView / ProgressBar。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center_vertical">
+    android:gravity="top"
+    android:background="@drawable/widget_bg"
+    android:paddingLeft="11dp"
+    android:paddingRight="11dp"
+    android:paddingTop="3dp"
+    android:paddingBottom="9dp">
 
-    <!-- 深色卡片:高度包裹内容 -->
+    <!-- 头部 -->
     <LinearLayout
-        android:id="@+id/w_root"
+        android:id="@+id/w_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="@drawable/widget_bg"
-        android:paddingLeft="13dp"
-        android:paddingRight="13dp"
-        android:paddingTop="11dp"
-        android:paddingBottom="11dp">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="4dp">
+        <TextView android:id="@+id/w_dot"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="●" android:textColor="#8E8E93" android:textSize="10sp"
+            android:paddingEnd="5dp" />
+        <TextView android:id="@+id/w_title"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="" android:textColor="#FFFFFFFF" android:textSize="14sp"
+            android:textStyle="bold" android:singleLine="true" android:ellipsize="end" />
+        <TextView android:id="@+id/w_updated"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="" android:textColor="#6E6E73" android:textSize="9sp"
+            android:paddingEnd="7dp" />
+        <LinearLayout android:id="@+id/w_refresh_hit"
+            android:layout_width="34dp"
+            android:layout_height="26dp"
+            android:gravity="center"
+            android:clickable="true"
+            android:contentDescription="刷新">
+            <ImageView android:id="@+id/w_refresh"
+                android:layout_width="24dp" android:layout_height="24dp"
+                android:padding="4dp"
+                android:background="@drawable/widget_action_bg"
+                android:src="@drawable/widget_refresh_icon"
+                android:tint="#E6FFFFFF"
+                android:scaleType="center"
+                android:clickable="true"
+                android:contentDescription="刷新" />
+        </LinearLayout>
+    </LinearLayout>
 
-        <!-- 头部 -->
-        <LinearLayout
+    <!-- 窗口进度条区(Claude/Codex 等) -->
+    <LinearLayout android:id="@+id/w_windows"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <LinearLayout android:id="@+id/w_win0"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingBottom="8dp">
-            <TextView android:id="@+id/w_dot"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="●" android:textColor="#8E8E93" android:textSize="10sp"
-                android:paddingEnd="6dp" />
-            <TextView android:id="@+id/w_title"
-                android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="" android:textColor="#FFFFFFFF" android:textSize="13sp"
-                android:textStyle="bold" android:singleLine="true" android:ellipsize="end" />
-            <TextView android:id="@+id/w_updated"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="" android:textColor="#6E6E73" android:textSize="9sp" />
-        </LinearLayout>
-
-        <!-- 窗口进度条区(Claude/GPT 等) -->
-        <LinearLayout android:id="@+id/w_windows"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical">
-
-            <LinearLayout android:id="@+id/w_win0"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-                    <TextView android:id="@+id/w_win0_label" android:layout_width="0dp"
-                        android:layout_height="wrap_content" android:layout_weight="1"
-                        android:text="" android:textColor="#C8C8CC" android:textSize="11sp" />
-                    <TextView android:id="@+id/w_win0_reset" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="" android:textColor="#6E6E73" android:textSize="9sp"
-                        android:paddingEnd="6dp" />
-                    <TextView android:id="@+id/w_win0_pct" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="" android:textColor="#FFFFFFFF" android:textSize="11sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-                <ProgressBar android:id="@+id/w_win0_bar"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent" android:layout_height="5dp"
-                    android:layout_marginTop="2dp"
-                    android:max="100" android:progress="0"
-                    android:progressDrawable="@drawable/widget_progress" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <TextView android:id="@+id/w_win0_label" android:layout_width="0dp"
+                    android:layout_height="wrap_content" android:layout_weight="1"
+                    android:text="" android:textColor="#C8C8CC" android:textSize="12sp"
+                    android:singleLine="true" android:ellipsize="end" />
+                <TextView android:id="@+id/w_win0_reset" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="" android:textColor="#6E6E73" android:textSize="9sp"
+                    android:paddingEnd="6dp" />
+                <TextView android:id="@+id/w_win0_pct" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="" android:textColor="#FFFFFFFF" android:textSize="12sp"
+                    android:textStyle="bold" />
             </LinearLayout>
-
-            <LinearLayout android:id="@+id/w_win1"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:paddingTop="7dp">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-                    <TextView android:id="@+id/w_win1_label" android:layout_width="0dp"
-                        android:layout_height="wrap_content" android:layout_weight="1"
-                        android:text="" android:textColor="#C8C8CC" android:textSize="11sp" />
-                    <TextView android:id="@+id/w_win1_reset" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="" android:textColor="#6E6E73" android:textSize="9sp"
-                        android:paddingEnd="6dp" />
-                    <TextView android:id="@+id/w_win1_pct" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="" android:textColor="#FFFFFFFF" android:textSize="11sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-                <ProgressBar android:id="@+id/w_win1_bar"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent" android:layout_height="5dp"
-                    android:layout_marginTop="2dp"
-                    android:max="100" android:progress="0"
-                    android:progressDrawable="@drawable/widget_progress" />
-            </LinearLayout>
-
-            <LinearLayout android:id="@+id/w_win2"
-                android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:paddingTop="7dp">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-                    <TextView android:id="@+id/w_win2_label" android:layout_width="0dp"
-                        android:layout_height="wrap_content" android:layout_weight="1"
-                        android:text="" android:textColor="#C8C8CC" android:textSize="11sp" />
-                    <TextView android:id="@+id/w_win2_reset" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="" android:textColor="#6E6E73" android:textSize="9sp"
-                        android:paddingEnd="6dp" />
-                    <TextView android:id="@+id/w_win2_pct" android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="" android:textColor="#FFFFFFFF" android:textSize="11sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-                <ProgressBar android:id="@+id/w_win2_bar"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent" android:layout_height="5dp"
-                    android:layout_marginTop="2dp"
-                    android:max="100" android:progress="0"
-                    android:progressDrawable="@drawable/widget_progress" />
-            </LinearLayout>
+            <ProgressBar android:id="@+id/w_win0_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent" android:layout_height="5dp"
+                android:layout_marginTop="2dp"
+                android:max="100" android:progress="0"
+                android:progressDrawable="@drawable/widget_progress" />
         </LinearLayout>
 
-        <!-- 余额区(PhanRouter 等) -->
-        <LinearLayout android:id="@+id/w_balance"
+        <LinearLayout android:id="@+id/w_win1"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="vertical">
-            <TextView android:id="@+id/w_bal_value"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="" android:textColor="#FFFFFFFF" android:textSize="20sp"
-                android:textStyle="bold" />
-            <TextView android:id="@+id/w_bal_sub"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="" android:textColor="#8E8E93" android:textSize="11sp"
-                android:paddingTop="2dp" />
+            android:orientation="vertical" android:paddingTop="4dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <TextView android:id="@+id/w_win1_label" android:layout_width="0dp"
+                    android:layout_height="wrap_content" android:layout_weight="1"
+                    android:text="" android:textColor="#C8C8CC" android:textSize="12sp"
+                    android:singleLine="true" android:ellipsize="end" />
+                <TextView android:id="@+id/w_win1_reset" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="" android:textColor="#6E6E73" android:textSize="9sp"
+                    android:paddingEnd="6dp" />
+                <TextView android:id="@+id/w_win1_pct" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="" android:textColor="#FFFFFFFF" android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+            <ProgressBar android:id="@+id/w_win1_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent" android:layout_height="5dp"
+                android:layout_marginTop="2dp"
+                android:max="100" android:progress="0"
+                android:progressDrawable="@drawable/widget_progress" />
         </LinearLayout>
 
-        <!-- 状态(加载中 / 错误 / 未配置) -->
-        <TextView android:id="@+id/w_status"
+        <LinearLayout android:id="@+id/w_win2"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="" android:textColor="#8E8E93" android:textSize="12sp" />
-
+            android:orientation="vertical" android:paddingTop="4dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <TextView android:id="@+id/w_win2_label" android:layout_width="0dp"
+                    android:layout_height="wrap_content" android:layout_weight="1"
+                    android:text="" android:textColor="#C8C8CC" android:textSize="12sp"
+                    android:singleLine="true" android:ellipsize="end" />
+                <TextView android:id="@+id/w_win2_reset" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="" android:textColor="#6E6E73" android:textSize="9sp"
+                    android:paddingEnd="6dp" />
+                <TextView android:id="@+id/w_win2_pct" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="" android:textColor="#FFFFFFFF" android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+            <ProgressBar android:id="@+id/w_win2_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent" android:layout_height="5dp"
+                android:layout_marginTop="2dp"
+                android:max="100" android:progress="0"
+                android:progressDrawable="@drawable/widget_progress" />
+        </LinearLayout>
     </LinearLayout>
+
+    <!-- 余额区(PhanRouter 等) -->
+    <LinearLayout android:id="@+id/w_balance"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical">
+        <TextView android:id="@+id/w_bal_value"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="" android:textColor="#FFFFFFFF" android:textSize="20sp"
+            android:textStyle="bold" />
+        <TextView android:id="@+id/w_bal_sub"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="" android:textColor="#8E8E93" android:textSize="11sp"
+            android:paddingTop="1dp" />
+    </LinearLayout>
+
+    <!-- 状态(加载中 / 错误 / 未配置) -->
+    <TextView android:id="@+id/w_status"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="" android:textColor="#8E8E93" android:textSize="12sp" />
+
 </LinearLayout>

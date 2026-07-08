@@ -1,4 +1,6 @@
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{DateTime, Utc};
+#[cfg(not(mobile))]
+use chrono::SecondsFormat;
 use serde_json::Value;
 use std::fs;
 
@@ -22,6 +24,7 @@ fn num(v: &Value) -> Option<f64> {
 /// 写 `cache_dir()/<service>.json`，格式与 Swift 兼容：
 /// 窗口型 `{"ts","plan","windows":[{"label","pct","resetAt"}]}`
 /// 余额型 `{"ts","balance":{"balance","used","currency","requestCount","models":[{"name","vendor"}]}}`
+#[cfg(not(mobile))]
 pub fn write(usage: &Usage, service: &str) {
     let dir = cache_dir();
     if fs::create_dir_all(&dir).is_err() {

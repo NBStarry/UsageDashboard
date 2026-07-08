@@ -64,9 +64,10 @@ private func fetcherString(_ f: FetcherKind) -> String {
 }
 
 private func mapConfig(_ c: ServiceConfig) -> RelayConfig {
-    RelayConfig(
+    let title = c.id == "codex" ? "Codex" : c.title
+    return RelayConfig(
         id: c.id,
-        title: c.title,
+        title: title,
         accent: c.accent,
         category: categoryString(c.category),
         fetcher: fetcherString(c.fetcher),

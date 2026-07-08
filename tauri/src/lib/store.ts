@@ -14,17 +14,41 @@ export const isRefreshing = writable<boolean>(false);
 // 移动端(Android/iOS):隐藏 quit、安全区 padding。init() 时从后端一次性读取。
 export const mobile = writable<boolean>(false);
 
+function displayTitle(id: string, title: string): string {
+  return id === 'codex' ? 'Codex' : title;
+}
+
+function normalizeConfigTitles(data: AppConfig): AppConfig {
+  return {
+    ...data,
+    services: data.services.map((service) => ({
+      ...service,
+      title: displayTitle(service.id, service.title),
+    })),
+  };
+}
+
+function normalizeSnapshotTitles(data: ServiceSnapshot[]): ServiceSnapshot[] {
+  return data.map((snapshot) => ({
+    ...snapshot,
+    config: {
+      ...snapshot.config,
+      title: displayTitle(snapshot.config.id, snapshot.config.title),
+    },
+  }));
+}
+
 // Fetch snapshots and update stores.
 async function refreshSnapshots(): Promise<void> {
   const data = await getSnapshots();
-  snapshots.set(data);
+  snapshots.set(normalizeSnapshotTitles(data));
   lastUpdated.set(new Date());
 }
 
 // Fetch config and update store.
 async function refreshConfig(): Promise<void> {
   const data = await getConfig();
-  config.set(data);
+  config.set(normalizeConfigTitles(data));
 }
 
 // init() should be called once from the root layout on mount.
@@ -42,7 +66,7 @@ export async function init(): Promise<void> {
     await refreshConfig();
   });
 
-  // 回到前台时重新取数:打开 app 时刷新最新用量,也让"网页登录获取凭证"后返回自动生效。
+  // 回到前台时重新取数:打开 app 时刷新最新用量。
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {

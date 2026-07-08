@@ -37,6 +37,7 @@
         <!-- 主屏小组件:读 dataDir/widget.json 渲染单渠道用量 -->
         <receiver
             android:name=".UsageWidgetProvider"
+            android:label="@string/widget_single_label"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -44,6 +45,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/usage_widget_info" />
+        </receiver>
+
+        <!-- 主屏小组件:2x2 双渠道,上下各显示一个渠道 -->
+        <receiver
+            android:name=".UsageDoubleWidgetProvider"
+            android:label="@string/widget_double_label"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/usage_double_widget_info" />
         </receiver>
 
         <!-- 添加小组件时弹出的渠道选择配置页 -->
@@ -56,15 +70,13 @@
             </intent-filter>
         </activity>
 
-        <!-- New-API 网关网页登录(登录后自动提取令牌) -->
+        <!-- 添加 2x2 小组件时弹出的上下渠道选择配置页 -->
         <activity
-            android:name=".WebLoginActivity"
-            android:exported="false"
-            android:label="网关登录"
+            android:name=".DoubleWidgetConfigActivity"
+            android:exported="true"
             android:theme="@style/Theme.usage_dashboard">
             <intent-filter>
-                <action android:name="app.usagedashboard.LOGIN_NEWAPI" />
-                <category android:name="android.intent.category.DEFAULT" />
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>
         </activity>
     </application>

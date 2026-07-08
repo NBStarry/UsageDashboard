@@ -2,13 +2,9 @@
 // 约定:全部返回 Result<_, String>;改配置后 save 并 emit("config-updated")。
 // 行为对齐 Sources/UsageBar/UsageStore.swift 的各 mutator。
 
-use std::fs;
-
-use serde_json::Value;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::models::AppConfig;
-use crate::paths::config_dir;
 use crate::state::{AppState, ServiceSnapshot};
 
 // 改配置后统一:重建状态 → 保存 → emit config-updated。
@@ -159,106 +155,10 @@ pub fn set_alert_cooldown_minutes(
     Ok(())
 }
 
-// 把手动录入的 New-API 凭证写入 config_dir()/<file_name>。
-// 复用 credentials 的路径校验语义:非空、非绝对路径、不含 ".."。
-#[tauri::command]
-pub fn save_new_api_credentials(
-    _state: State<'_, AppState>,
-    file_name: String,
-    json: String,
-) -> Result<(), String> {
-    let clean = file_name.trim();
-    if clean.is_empty() {
-        return Err("文件名不能为空".to_string());
-    }
-    if std::path::Path::new(clean).is_absolute() || clean.contains("..") {
-        return Err("文件名非法".to_string());
-    }
-    // 校验是合法 JSON,避免写入垃圾。
-    serde_json::from_str::<Value>(&json).map_err(|e| format!("凭证不是合法 JSON:{}", e))?;
-
-    let dir = config_dir();
-    fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败:{}", e))?;
-    let path = dir.join(clean);
-    fs::write(&path, json).map_err(|e| format!("写入凭证失败:{}", e))?;
-    Ok(())
-}
-
-// 手机端录入 Claude OAuth accessToken,写入 home_dir()/.claude/.credentials.json
-// (结构对齐 credentials::claude_token 读取的 claudeAiOauth.accessToken)。
-// 仅移动端使用:桌面端该文件由 Claude Code CLI 维护,不应被覆盖。
-#[tauri::command]
-pub fn save_claude_credentials(
-    _state: State<'_, AppState>,
-    access_token: String,
-) -> Result<(), String> {
-    // 防护:仅移动端。桌面端 home_dir() 是真实主目录,写入会覆盖 Claude Code CLI 的凭证。
-    if !cfg!(mobile) {
-        return Err("仅移动端支持 app 内录入 Claude 凭证".to_string());
-    }
-    let tok = access_token.trim();
-    if tok.is_empty() {
-        return Err("accessToken 不能为空".to_string());
-    }
-    let home = crate::paths::home_dir().ok_or("无法定位主目录")?;
-    let dir = home.join(".claude");
-    fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败:{}", e))?;
-    let json = serde_json::json!({ "claudeAiOauth": { "accessToken": tok } });
-    fs::write(dir.join(".credentials.json"), json.to_string())
-        .map_err(|e| format!("写入凭证失败:{}", e))?;
-    Ok(())
-}
-
-// 手机端录入 Codex/GPT 凭证,写入 home_dir()/.codex/auth.json
-// (结构对齐 credentials::codex_creds 读取的 tokens.access_token / tokens.account_id)。
-// 仅移动端使用:桌面端该文件由 Codex CLI 维护。
-#[tauri::command]
-pub fn save_codex_credentials(
-    _state: State<'_, AppState>,
-    access_token: String,
-    account_id: String,
-) -> Result<(), String> {
-    // 防护:仅移动端。桌面端 home_dir() 是真实主目录,写入会覆盖 Codex CLI 的凭证。
-    if !cfg!(mobile) {
-        return Err("仅移动端支持 app 内录入 Codex 凭证".to_string());
-    }
-    let tok = access_token.trim();
-    let acc = account_id.trim();
-    if tok.is_empty() || acc.is_empty() {
-        return Err("access_token 和 account_id 均必填".to_string());
-    }
-    let home = crate::paths::home_dir().ok_or("无法定位主目录")?;
-    let dir = home.join(".codex");
-    fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败:{}", e))?;
-    let json = serde_json::json!({ "tokens": { "access_token": tok, "account_id": acc } });
-    fs::write(dir.join("auth.json"), json.to_string())
-        .map_err(|e| format!("写入凭证失败:{}", e))?;
-    Ok(())
-}
-
-// 设置/清除 HTTP 代理(空串=清除)。立即生效:写入 http 全局 + 存配置 + 重新取数。
-// 主要用于 GFW 下让 Claude/Codex 经代理(如 http://127.0.0.1:7897,模拟器 http://10.0.2.2:7897)。
-#[tauri::command]
-pub async fn set_proxy_url(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    url: String,
-) -> Result<(), String> {
-    let trimmed = url.trim();
-    let value = if trimmed.is_empty() { None } else { Some(trimmed.to_string()) };
-    state.config.lock().unwrap().proxy_url = value.clone();
-    crate::http::set_proxy(value);
-    commit_config(&app, &state)?;
-    state.refresh(&app).await;
-    let _ = app.emit("usage-updated", ());
-    Ok(())
-}
-
 // 请求把主屏小组件固定到桌面(弹系统确认框)。仅 Android,经 JNI 调
 // AppWidgetManager.requestPinAppWidget(只用 framework 类,避开 JNI 找不到 app 类的问题)。
 #[cfg(target_os = "android")]
-#[tauri::command]
-pub fn request_pin_widget() -> Result<bool, String> {
+fn request_pin_widget_provider(provider_class: &str) -> Result<bool, String> {
     use jni::objects::{JObject, JValue};
     let ctx = ndk_context::android_context();
     let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| format!("vm:{e}"))?;
@@ -284,7 +184,7 @@ pub fn request_pin_widget() -> Result<bool, String> {
     }
 
     let name = env
-        .new_string("app.usagedashboard.UsageWidgetProvider")
+        .new_string(provider_class)
         .map_err(|e| format!("str:{e}"))?;
     let name_obj = JObject::from(name);
     let cn = env
@@ -311,134 +211,86 @@ pub fn request_pin_widget() -> Result<bool, String> {
     Ok(ok)
 }
 
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn request_pin_widget() -> Result<bool, String> {
+    request_pin_widget_provider("app.usagedashboard.UsageWidgetProvider")
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn request_pin_double_widget() -> Result<bool, String> {
+    request_pin_widget_provider("app.usagedashboard.UsageDoubleWidgetProvider")
+}
+
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn request_pin_widget() -> Result<bool, String> {
     Err("仅 Android 支持添加主屏小组件".to_string())
 }
 
-// 打开 New-API 网关网页登录(WebLoginActivity),登录后自动提取令牌写入凭证文件。
-// 经 JNI 用 action + setPackage 启动(只用 framework Intent 类,避开 JNI 找不到 app 类)。
-#[cfg(target_os = "android")]
-#[tauri::command]
-pub fn login_new_api(
-    _state: State<'_, AppState>,
-    base_url: String,
-    credential_file: String,
-) -> Result<(), String> {
-    let clean = credential_file.trim();
-    if clean.is_empty() || std::path::Path::new(clean).is_absolute() || clean.contains("..") {
-        return Err("凭证文件名非法".to_string());
-    }
-    if base_url.trim().is_empty() {
-        return Err("请先填写网关地址 baseUrl".to_string());
-    }
-    let dir = config_dir();
-    fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败:{}", e))?;
-    let file_path = dir.join(clean).to_string_lossy().to_string();
-
-    use jni::objects::{JObject, JValue};
-    let ctx = ndk_context::android_context();
-    let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }.map_err(|e| format!("vm:{e}"))?;
-    let mut env = vm.attach_current_thread().map_err(|e| format!("attach:{e}"))?;
-    let context = unsafe { JObject::from_raw(ctx.context().cast()) };
-
-    let action = env
-        .new_string("app.usagedashboard.LOGIN_NEWAPI")
-        .map_err(|e| e.to_string())?;
-    let intent = env
-        .new_object(
-            "android/content/Intent",
-            "(Ljava/lang/String;)V",
-            &[JValue::Object(&JObject::from(action))],
-        )
-        .map_err(|e| format!("intent:{e}"))?;
-
-    let pkg = env
-        .call_method(&context, "getPackageName", "()Ljava/lang/String;", &[])
-        .and_then(|v| v.l())
-        .map_err(|e| format!("pkg:{e}"))?;
-    env.call_method(
-        &intent,
-        "setPackage",
-        "(Ljava/lang/String;)Landroid/content/Intent;",
-        &[JValue::Object(&pkg)],
-    )
-    .map_err(|e| format!("setPackage:{e}"))?;
-    env.call_method(
-        &intent,
-        "addFlags",
-        "(I)Landroid/content/Intent;",
-        &[JValue::Int(0x1000_0000)], // FLAG_ACTIVITY_NEW_TASK
-    )
-    .map_err(|e| format!("addFlags:{e}"))?;
-
-    // putExtra("baseUrl", ...)
-    let k1 = env.new_string("baseUrl").map_err(|e| e.to_string())?;
-    let v1 = env.new_string(base_url.trim()).map_err(|e| e.to_string())?;
-    env.call_method(
-        &intent,
-        "putExtra",
-        "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;",
-        &[JValue::Object(&JObject::from(k1)), JValue::Object(&JObject::from(v1))],
-    )
-    .map_err(|e| format!("extra1:{e}"))?;
-    // putExtra("filePath", ...)
-    let k2 = env.new_string("filePath").map_err(|e| e.to_string())?;
-    let v2 = env.new_string(&file_path).map_err(|e| e.to_string())?;
-    env.call_method(
-        &intent,
-        "putExtra",
-        "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;",
-        &[JValue::Object(&JObject::from(k2)), JValue::Object(&JObject::from(v2))],
-    )
-    .map_err(|e| format!("extra2:{e}"))?;
-
-    env.call_method(
-        &context,
-        "startActivity",
-        "(Landroid/content/Intent;)V",
-        &[JValue::Object(&intent)],
-    )
-    .map_err(|e| format!("startActivity:{e}"))?;
-    Ok(())
-}
-
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-pub fn login_new_api(
-    _state: State<'_, AppState>,
-    base_url: String,
-    credential_file: String,
-) -> Result<(), String> {
-    let _ = (base_url, credential_file);
-    Err("仅移动端支持网页登录".to_string())
+pub fn request_pin_double_widget() -> Result<bool, String> {
+    Err("仅 Android 支持添加主屏小组件".to_string())
 }
 
-// 设置中转 relay 配置(url, secret, enabled)。写入 config 后立即刷新。
-// enabled=true 时 url 和 secret 均必填;enabled=false 时仅持久化关闭状态。
+// 设置中转 relay 配置。手机端目前固定使用中转模式:
+// - url 必填。
+// - secret 首次必填;后续改地址时可留空,沿用已保存的 secret。
 #[tauri::command]
 pub async fn set_relay_config(
     app: AppHandle,
     state: State<'_, AppState>,
     url: String,
     secret: String,
-    enabled: bool,
+    _enabled: bool,
 ) -> Result<(), String> {
+    let relay;
     {
         let mut cfg = state.config.lock().unwrap();
         let u = url.trim();
-        if enabled && (u.is_empty() || secret.trim().is_empty()) {
-            return Err("中转地址和密钥必填".to_string());
+        if u.is_empty() {
+            return Err("中转地址必填".to_string());
         }
-        cfg.relay = Some(crate::models::RelayConfig {
+        let input_secret = secret.trim();
+        let next_secret = if input_secret.is_empty() {
+            cfg.relay
+                .as_ref()
+                .map(|r| r.secret.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| "首次连接需要填写中转密钥".to_string())?
+        } else {
+            input_secret.to_string()
+        };
+        cfg.proxy_url = None;
+        relay = crate::models::RelayConfig {
             url: u.to_string(),
-            secret: secret.trim().to_string(),
-            enabled,
-        });
+            secret: next_secret,
+            enabled: true,
+        };
+        cfg.relay = Some(relay.clone());
     }
     commit_config(&app, &state)?;
-    state.refresh(&app).await;
+
+    let payload = crate::fetchers::fetch_relay(&relay)
+        .await
+        .map_err(|e| format!("配置已保存,但连接失败:{}", e))?;
+    let lu = payload
+        .ts
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+        .unwrap_or_else(chrono::Utc::now);
+    state.apply_relay(payload.services);
+    *state.last_updated.lock().unwrap() = Some(lu);
+    #[cfg(mobile)]
+    {
+        let snaps = state.snapshots();
+        let lu = *state.last_updated.lock().unwrap();
+        crate::widget::write_snapshot(&snaps, lu);
+    }
+    let _ = app.emit("usage-updated", ());
     Ok(())
 }
 

@@ -9,7 +9,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="选择要在此小组件显示的渠道"
+        android:text="选择 2x2 小组件显示的渠道"
         android:textColor="#FFFFFFFF"
         android:textSize="16sp"
         android:textStyle="bold"
@@ -24,14 +24,14 @@
         android:paddingBottom="6dp" />
 
     <RadioGroup
-        android:id="@+id/config_style"
+        android:id="@+id/double_config_style"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:paddingBottom="16dp">
 
         <RadioButton
-            android:id="@+id/style_compact"
+            android:id="@+id/double_style_compact"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -41,7 +41,7 @@
             android:buttonTint="#7C5CFC" />
 
         <RadioButton
-            android:id="@+id/style_standard"
+            android:id="@+id/double_style_standard"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -51,7 +51,7 @@
             android:buttonTint="#7C5CFC" />
 
         <RadioButton
-            android:id="@+id/style_large"
+            android:id="@+id/double_style_large"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -67,14 +67,55 @@
         android:layout_height="0dp"
         android:layout_weight="1">
         <LinearLayout
-            android:id="@+id/config_list"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="上方渠道"
+                android:textColor="#8E8E93"
+                android:textSize="12sp"
+                android:paddingBottom="6dp" />
+
+            <RadioGroup
+                android:id="@+id/double_top_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingBottom="14dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="下方渠道"
+                android:textColor="#8E8E93"
+                android:textSize="12sp"
+                android:paddingBottom="6dp" />
+
+            <RadioGroup
+                android:id="@+id/double_bottom_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </LinearLayout>
     </ScrollView>
 
+    <Button
+        android:id="@+id/double_config_confirm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="保存"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFFFF"
+        android:textSize="15sp"
+        android:backgroundTint="#0A84FF"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp" />
+
     <TextView
-        android:id="@+id/config_hint"
+        android:id="@+id/double_config_hint"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text=""

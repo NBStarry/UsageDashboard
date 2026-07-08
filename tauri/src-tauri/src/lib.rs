@@ -2,6 +2,7 @@ mod alerts;
 mod cache;
 mod commands;
 mod config_store;
+#[cfg(not(mobile))]
 mod credentials;
 mod fetchers;
 mod http;
@@ -28,7 +29,7 @@ const MIN_REFRESH_SECONDS: u64 = 60;
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub extern "system" fn Java_app_usagedashboard_MainActivity_nativeInit<'local>(
-    mut env: jni::JNIEnv<'local>,
+    env: jni::JNIEnv<'local>,
     _this: jni::objects::JObject<'local>,
     context: jni::objects::JObject<'local>,
 ) {
@@ -60,7 +61,8 @@ pub fn run() {
     std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu");
 
     let config = config_store::load();
-    // 启动即应用代理(若 config 配了 proxyUrl),让首刷就能走代理。
+    // 桌面端启动即应用代理(若 config 配了 proxyUrl),让首刷就能走代理。
+    #[cfg(not(mobile))]
     http::set_proxy(config.proxy_url.clone());
     let app_state = AppState::new(config);
 
@@ -89,13 +91,9 @@ pub fn run() {
             commands::set_alert_threshold,
             commands::set_alert_rule,
             commands::set_alert_cooldown_minutes,
-            commands::save_new_api_credentials,
-            commands::save_claude_credentials,
-            commands::save_codex_credentials,
-            commands::set_proxy_url,
             commands::set_relay_config,
             commands::request_pin_widget,
-            commands::login_new_api,
+            commands::request_pin_double_widget,
             commands::is_mobile,
             commands::quit,
         ])
@@ -112,7 +110,6 @@ pub fn run() {
                     let _ = std::fs::create_dir_all(&dir);
                     paths::set_base_dir(dir);
                     let cfg = config_store::load();
-                    http::set_proxy(cfg.proxy_url.clone());
                     let state = app.state::<AppState>();
                     *state.config.lock().unwrap() = cfg;
                     state.rebuild_states();

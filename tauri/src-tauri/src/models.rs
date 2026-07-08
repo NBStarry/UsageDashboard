@@ -302,7 +302,7 @@ impl Default for AppConfig {
                 ),
                 ServiceConfig::new(
                     "codex",
-                    "GPT",
+                    "Codex",
                     "#10A37F",
                     BillingCategory::Subscription,
                     FetcherKind::CodexWham,
@@ -351,7 +351,7 @@ pub struct BalanceInfo {
     pub models: Vec<ModelEntry>,
 }
 
-// 一个服务的归一化用量。windows 用于用量窗口型(Claude/GPT),balance 用于余额型(PhanRouter)。
+// 一个服务的归一化用量。windows 用于用量窗口型(Claude/Codex),balance 用于余额型(PhanRouter)。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Usage {

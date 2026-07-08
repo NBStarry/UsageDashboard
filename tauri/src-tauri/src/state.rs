@@ -12,6 +12,7 @@ use std::sync::Mutex;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
+#[cfg(not(mobile))]
 use tauri_plugin_notification::NotificationExt;
 
 use crate::alerts;
@@ -112,6 +113,21 @@ impl AppState {
         *self.relay_snapshots.lock().unwrap() = Some(services);
     }
 
+    #[cfg(mobile)]
+    fn set_enabled_errors(&self, message: &str) {
+        let config = self.config.lock().unwrap();
+        let mut statuses = self.statuses.lock().unwrap();
+        statuses.clear();
+        for cfg in config.services.iter().filter(|c| c.enabled) {
+            statuses.insert(
+                cfg.id.clone(),
+                ServiceStatus::Error {
+                    message: message.to_string(),
+                },
+            );
+        }
+    }
+
     // 按 config 顺序、仅 enabled 输出快照;状态缺失时用 cache→Stale("加载中…") 或 Loading。
     pub fn snapshots(&self) -> Vec<ServiceSnapshot> {
         // relay 模式:若已有中转快照直接返回,跳过本地取数结果。
@@ -147,6 +163,7 @@ impl AppState {
     }
 
     // 托盘徽标据此计数切换告警图标(lib.rs 的 usage-updated 监听器消费)。
+    #[cfg(desktop)]
     pub fn active_alert_count(&self) -> usize {
         self.active_alert_keys
             .lock()
@@ -159,6 +176,7 @@ impl AppState {
     // 更新单个服务状态 + 写缓存 + 评估告警。
     // 返回应触发的通知(标题, 正文)列表;不依赖 AppHandle，便于单测。
     // 冷却在此处理:`now - last < max(60, cooldown)` 则跳过通知,但仍计入 active_keys(对齐 Swift)。
+    #[cfg(not(mobile))]
     pub fn apply_outcome(
         &self,
         id: &str,
@@ -260,62 +278,76 @@ impl AppState {
                     let _ = app.emit("usage-updated", ());
                 }
                 Err(_e) => {
-                    // 保留上次中转快照;仅更新时间不动。前端继续显示旧数据。
+                    #[cfg(mobile)]
+                    {
+                        if self.relay_snapshots.lock().unwrap().is_none() {
+                            self.set_enabled_errors(&_e);
+                            let snaps = self.snapshots();
+                            let lu = *self.last_updated.lock().unwrap();
+                            crate::widget::write_snapshot(&snaps, lu);
+                        }
+                    }
+                    // 有上次中转快照时保留旧数据;仅更新时间不动。
                     let _ = app.emit("usage-updated", ());
                 }
             }
             return;
         }
 
-        // 1) 锁取需要的 enabled 配置克隆,随即放锁。
-        let services: Vec<ServiceConfig> = {
-            let config = self.config.lock().unwrap();
-            config
-                .services
-                .iter()
-                .filter(|c| c.enabled)
-                .cloned()
-                .collect()
-        };
-
-        // 2) 并发取数:各服务独立,一个失败不影响其他。
-        let mut set = tokio::task::JoinSet::new();
-        for cfg in services {
-            set.spawn(async move {
-                let outcome = fetchers::fetch_service(&cfg).await;
-                (cfg.id, outcome)
-            });
-        }
-
-        // 3) 逐个回锁 apply,收集待发通知。
-        let mut pending: Vec<(String, String)> = Vec::new();
-        while let Some(res) = set.join_next().await {
-            if let Ok((id, outcome)) = res {
-                pending.extend(self.apply_outcome(&id, outcome));
-            }
-        }
-
-        // 4) 发送通知(在持有 AppHandle 时)。
-        for (title, body) in pending {
-            let _ = app
-                .notification()
-                .builder()
-                .title(title)
-                .body(body)
-                .show();
-        }
-
-        *self.last_updated.lock().unwrap() = Some(Utc::now());
-
-        // 移动端:把最新快照写给原生 App Widget(MainActivity.onStop 时触发其重绘)。
         #[cfg(mobile)]
         {
+            self.set_enabled_errors("请先配置手机中转");
+            *self.last_updated.lock().unwrap() = None;
             let snaps = self.snapshots();
-            let lu = *self.last_updated.lock().unwrap();
-            crate::widget::write_snapshot(&snaps, lu);
+            crate::widget::write_snapshot(&snaps, None);
+            let _ = app.emit("usage-updated", ());
+            return;
         }
 
-        let _ = app.emit("usage-updated", ());
+        #[cfg(not(mobile))]
+        {
+            // 1) 锁取需要的 enabled 配置克隆,随即放锁。
+            let services = {
+                let config = self.config.lock().unwrap();
+                config
+                    .services
+                    .iter()
+                    .filter(|c| c.enabled)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            };
+
+            // 2) 并发取数:各服务独立,一个失败不影响其他。
+            let mut set = tokio::task::JoinSet::new();
+            for cfg in services {
+                set.spawn(async move {
+                    let outcome = fetchers::fetch_service(&cfg).await;
+                    (cfg.id, outcome)
+                });
+            }
+
+            // 3) 逐个回锁 apply,收集待发通知。
+            let mut pending: Vec<(String, String)> = Vec::new();
+            while let Some(res) = set.join_next().await {
+                if let Ok((id, outcome)) = res {
+                    pending.extend(self.apply_outcome(&id, outcome));
+                }
+            }
+
+            // 4) 发送通知(在持有 AppHandle 时)。
+            for (title, body) in pending {
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title(title)
+                    .body(body)
+                    .show();
+            }
+
+            *self.last_updated.lock().unwrap() = Some(Utc::now());
+
+            let _ = app.emit("usage-updated", ());
+        }
     }
 
     // 配置变更后:重建状态表(保留已有状态,缺失补 cache/Loading)+ 清理失效服务的告警键。

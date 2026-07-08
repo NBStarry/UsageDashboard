@@ -8,16 +8,11 @@
     setServiceEnabled,
     moveService,
     setDisplayContent,
-    saveNewApiCredentials,
-    saveClaudeCredentials,
-    saveCodexCredentials,
-    setProxyUrl,
     setRelayConfig,
     requestPinWidget,
-    loginNewApi,
-    refreshNow,
+    requestPinDoubleWidget,
   } from '$lib/api';
-  import type { BillingCategory, FetcherKind, ServiceConfig, UsageAlertRule } from '$lib/types';
+  import type { BillingCategory, ServiceConfig, UsageAlertRule } from '$lib/types';
 
   // Display option definitions per category, matching DisplayContent.options(for:) in Swift
   interface DisplayOption {
@@ -94,76 +89,45 @@
     return d[key] ?? false;
   }
 
-  // New-API 网页登录:打开网关登录页,登录后原生端自动写入凭证文件。
-  // 需要先填 baseUrl(知道是哪个网关)。返回 app 后自动刷新(visibilitychange)。
-  async function onLoginNewApi(cfg: ServiceConfig) {
-    const f = credForms[cfg.id];
-    if (!f) return;
-    if (!cfg.credentialFile) {
-      f.ok = false; f.msg = '该服务未配置 credentialFile';
-      return;
-    }
-    if (!f.baseUrl.trim()) {
-      f.ok = false; f.msg = '请先填写网关地址 baseUrl';
-      return;
-    }
-    try {
-      await loginNewApi(f.baseUrl.trim(), cfg.credentialFile);
-      f.ok = true; f.msg = '已打开登录页,登录后自动获取';
-    } catch (e) {
-      f.ok = false; f.msg = `${e}`;
-    }
-  }
-
-  // --- HTTP 代理 ---
-  // GFW 下让 Claude/Codex 经代理取数。输入框预填当前配置,运行期改即生效。
-  let proxyInput = $state('');
-  let proxySynced = false;
-  let proxySaving = $state(false);
-  let proxyMsg = $state('');
-  $effect(() => {
-    // 首次拿到 config 时把已存的 proxyUrl 同步进输入框(之后不覆盖用户编辑)。
-    if (!proxySynced && $config) {
-      proxyInput = $config.proxyUrl ?? '';
-      proxySynced = true;
-    }
-  });
-  async function onSaveProxy() {
-    proxySaving = true;
-    proxyMsg = '';
-    try {
-      await setProxyUrl(proxyInput.trim());
-      proxyMsg = proxyInput.trim() ? '已设置,正在刷新…' : '已清除,正在刷新…';
-    } catch (e) {
-      proxyMsg = `失败:${e}`;
-    } finally {
-      proxySaving = false;
-    }
-  }
-
   // --- 手机中转 ---
   // 从 Mac 拉用量:填 Mac 的中转地址 + 密钥,启用后手机直接显示 Mac 算好的数据。
   let relayUrl = $state('');
   let relaySecret = $state('');
-  let relayEnabled = $state(false);
   let relaySaving = $state(false);
   let relayMsg = $state('');
+  let relayOk = $state(true);
   let relaySynced = false;
   $effect(() => {
-    // 首次拿到 config 时预填 url 和 enabled;secret 不预填(敏感)。
+    // 首次拿到 config 时预填 url;secret 不预填(敏感)。
     if (!relaySynced && $config) {
       relayUrl = $config.relay?.url ?? '';
-      relayEnabled = $config.relay?.enabled ?? false;
       relaySynced = true;
     }
   });
   async function onSaveRelay() {
+    const url = relayUrl.trim();
+    const secret = relaySecret.trim();
+    const hasSavedSecret = Boolean($config?.relay?.secret);
+    if (!url) {
+      relayOk = false;
+      relayMsg = '请填写 Mac 中转地址';
+      return;
+    }
+    if (!secret && !hasSavedSecret) {
+      relayOk = false;
+      relayMsg = '首次连接需要填写 Mac 端密钥';
+      return;
+    }
     relaySaving = true;
     relayMsg = '';
+    relayOk = true;
     try {
-      await setRelayConfig(relayUrl.trim(), relaySecret.trim(), relayEnabled);
-      relayMsg = relayEnabled ? '已连接,正在拉取…' : '已保存';
+      await setRelayConfig(url, secret);
+      relaySecret = '';
+      relayOk = true;
+      relayMsg = '已保存并连接';
     } catch (e) {
+      relayOk = false;
       relayMsg = `失败:${e}`;
     } finally {
       relaySaving = false;
@@ -172,179 +136,35 @@
 
   // --- 主屏小组件(仅移动端)---
   let widgetMsg = $state('');
-  async function onAddWidget() {
+  async function onAddWidget(kind: 'single' | 'double') {
     widgetMsg = '';
     try {
-      const ok = await requestPinWidget();
+      const ok = kind === 'double' ? await requestPinDoubleWidget() : await requestPinWidget();
       widgetMsg = ok ? '已请求,按系统提示确认添加' : '桌面未接受请求';
     } catch (e) {
       widgetMsg = `${e}`;
     }
   }
 
-  // --- 凭证 app 内录入 ---
-  // 手机沙盒里没有桌面 CLI 写的凭证文件,只能 app 内录入。表单按服务 id 维护;
-  // 不预填(后端不暴露读凭证命令,token 敏感)。支持三种 fetcher:
-  //   newAPI(baseUrl/accessToken/userId/quotaPerUnit/currency)— 桌面+移动;
-  //   claudeOauth(accessToken)、codexWham(accessToken/accountId)— 仅移动端
-  //   (桌面端这两个文件由 Claude Code / Codex CLI 维护,录入会覆盖,故不显示)。
-  interface CredForm {
-    open: boolean;
-    baseUrl: string;
-    accessToken: string;
-    accountId: string;
-    userId: string;
-    quotaPerUnit: string;
-    currency: string;
-    saving: boolean;
-    msg: string;
-    ok: boolean;
-  }
-
-  // 哪些 fetcher 支持 app 内录入,以及是否仅限移动端。
-  function credInputKind(fetcher: FetcherKind): 'newAPI' | 'claude' | 'codex' | null {
-    if (fetcher === 'newAPI') return 'newAPI';
-    if (fetcher === 'claudeOauth') return 'claude';
-    if (fetcher === 'codexWham') return 'codex';
-    return null;
-  }
-
-  // 该服务此刻是否应展示录入表单(claude/codex 仅移动端)。
-  function showCredInput(cfg: ServiceConfig): boolean {
-    const kind = credInputKind(cfg.fetcher);
-    if (!kind) return false;
-    if (kind === 'newAPI') return true;
-    return $mobile;
-  }
-
-  let credForms = $state<Record<string, CredForm>>({});
-
-  // 为可录入服务懒初始化表单,保留用户已输入的值。
-  $effect(() => {
-    for (const svc of $config?.services ?? []) {
-      if (credInputKind(svc.fetcher) && !credForms[svc.id]) {
-        credForms[svc.id] = {
-          open: false,
-          baseUrl: '',
-          accessToken: '',
-          accountId: '',
-          userId: '',
-          quotaPerUnit: '',
-          currency: '',
-          saving: false,
-          msg: '',
-          ok: false,
-        };
-      }
-    }
-  });
-
-  async function onSaveCreds(cfg: ServiceConfig) {
-    const f = credForms[cfg.id];
-    if (!f) return;
-    const kind = credInputKind(cfg.fetcher);
-
-    // 各 fetcher 的校验 + 保存动作。
-    let doSave: (() => Promise<void>) | null = null;
-    if (kind === 'newAPI') {
-      if (!cfg.credentialFile) {
-        f.ok = false;
-        f.msg = '该服务未配置 credentialFile,无法保存';
-        return;
-      }
-      if (!f.baseUrl.trim() || !f.accessToken.trim()) {
-        f.ok = false;
-        f.msg = '网关地址和 accessToken 必填';
-        return;
-      }
-      const payload: Record<string, unknown> = {
-        baseUrl: f.baseUrl.trim(),
-        accessToken: f.accessToken.trim(),
-      };
-      if (f.userId.trim()) payload.userId = Number(f.userId.trim());
-      if (f.quotaPerUnit.trim()) payload.quotaPerUnit = Number(f.quotaPerUnit.trim());
-      if (f.currency.trim()) payload.currency = f.currency.trim();
-      const file = cfg.credentialFile;
-      doSave = () => saveNewApiCredentials(file, JSON.stringify(payload));
-    } else if (kind === 'claude') {
-      if (!f.accessToken.trim()) {
-        f.ok = false;
-        f.msg = 'accessToken 必填';
-        return;
-      }
-      const tok = f.accessToken.trim();
-      doSave = () => saveClaudeCredentials(tok);
-    } else if (kind === 'codex') {
-      if (!f.accessToken.trim() || !f.accountId.trim()) {
-        f.ok = false;
-        f.msg = 'access_token 和 account_id 必填';
-        return;
-      }
-      const tok = f.accessToken.trim();
-      const acc = f.accountId.trim();
-      doSave = () => saveCodexCredentials(tok, acc);
-    }
-    if (!doSave) return;
-
-    f.saving = true;
-    f.msg = '';
-    try {
-      await doSave();
-      // 清掉敏感的 token,立即拉一次用量验证凭证可用。
-      f.accessToken = '';
-      f.ok = true;
-      f.msg = '已保存,正在刷新…';
-      await refreshNow();
-      f.msg = '已保存';
-    } catch (e) {
-      f.ok = false;
-      f.msg = `保存失败:${e}`;
-    } finally {
-      f.saving = false;
-    }
-  }
 </script>
 
 <div class="settings-root">
   {#if $config}
-    <!-- HTTP 代理(GFW 下让 Claude/GPT 经代理取数) -->
-    <div class="panel">
-      <span class="label-semibold" style="font-size: 12px; color: rgba(255,255,255,0.96);">HTTP 代理</span>
-      <div class="cred-form" style="margin-top: 8px;">
-        <input
-          class="cred-input"
-          type="text"
-          placeholder="留空=直连;例 http://127.0.0.1:7897"
-          bind:value={proxyInput}
-        />
-        <div class="cred-actions">
-          <button class="cred-save" disabled={proxySaving} onclick={onSaveProxy}>
-            {proxySaving ? '应用中…' : '应用并刷新'}
-          </button>
-          {#if proxyMsg}
-            <span class="cred-msg" style="color: rgba(255,255,255,0.7);">{proxyMsg}</span>
-          {/if}
-        </div>
-        <span class="hint">国外接口(Claude/GPT)被墙时填代理;由代理按规则分流,国内接口不受影响。</span>
-      </div>
-    </div>
-
-    <!-- 手机中转:从 Mac 拉用量。url+secret 由 Mac 设置页二维码/文本提供 -->
+    <!-- 手机中转:从 Mac 拉用量。url+secret 由 Mac 设置页二维码/文本提供。 -->
     <div class="panel">
       <span class="label-semibold" style="font-size:12px;color:rgba(255,255,255,0.96);">手机中转（从 Mac 取用量）</span>
       <div class="cred-form" style="margin-top:8px;">
         <input class="cred-input" type="text" placeholder="Mac 地址 http://100.x.x.x:8787" bind:value={relayUrl} />
-        <input class="cred-input" type="text" placeholder="密钥 secret" bind:value={relaySecret} />
-        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,0.8);">
-          <input type="checkbox" bind:checked={relayEnabled} /> 启用中转模式
-        </label>
+        <input class="cred-input" type="password" placeholder={$config.relay?.secret ? '密钥 secret（已保存，可留空）' : '密钥 secret'} bind:value={relaySecret} />
         <div class="cred-actions">
           <button class="cred-save" disabled={relaySaving} onclick={onSaveRelay}>
             {relaySaving ? '连接中…' : '保存并连接'}
           </button>
-          {#if relayMsg}<span class="cred-msg">{relayMsg}</span>{/if}
+          {#if relayMsg}
+            <span class="cred-msg" style="color: {relayOk ? '#34C759' : '#FF6B6B'};">{relayMsg}</span>
+          {/if}
         </div>
-        <span class="hint">需手机与 Mac 在同一 Tailscale 网络。启用后手机直接显示 Mac 算好的用量，不再本地取数。</span>
+        <span class="hint">手机只使用中转模式，直接显示 Mac 算好的用量；密钥已保存后，改地址时可留空。</span>
       </div>
     </div>
 
@@ -352,7 +172,8 @@
       <!-- 主屏小组件 -->
       <div class="panel">
         <div class="cred-actions">
-          <button class="cred-save" onclick={onAddWidget}>添加主屏小组件</button>
+          <button class="cred-save" onclick={() => onAddWidget('single')}>添加 2x1 小组件</button>
+          <button class="cred-save" onclick={() => onAddWidget('double')}>添加 2x2 小组件</button>
           {#if widgetMsg}
             <span class="cred-msg" style="color: rgba(255,255,255,0.7);">{widgetMsg}</span>
           {/if}
@@ -500,48 +321,6 @@
             {/each}
           </div>
 
-          <!-- 凭证录入:newAPI 桌面+移动;claude/codex 仅移动端 -->
-          {#if showCredInput(cfg) && credForms[cfg.id]}
-            {@const f = credForms[cfg.id]}
-            {@const kind = credInputKind(cfg.fetcher)}
-            <div class="cred-section">
-              <button class="cred-toggle" onclick={() => (f.open = !f.open)}>
-                {f.open ? '▾' : '▸'} 凭证录入
-              </button>
-              {#if f.open}
-                <div class="cred-form">
-                  {#if kind === 'newAPI'}
-                    <input class="cred-input" type="text" placeholder="网关地址 baseUrl" bind:value={f.baseUrl} />
-                    {#if $mobile}
-                      <button class="cred-login" onclick={() => onLoginNewApi(cfg)}>🔑 网页登录自动获取</button>
-                      <span class="hint">填好网关地址后点此 → 登录网关账号 → 自动生成并填入令牌(推荐)。也可在下方手动填。</span>
-                    {/if}
-                    <input class="cred-input" type="password" placeholder="accessToken(系统访问令牌)" bind:value={f.accessToken} />
-                    <div class="cred-row3">
-                      <input class="cred-input" type="number" placeholder="userId(默认 0)" bind:value={f.userId} />
-                      <input class="cred-input" type="number" placeholder="quotaPerUnit(默认 500000)" bind:value={f.quotaPerUnit} />
-                      <input class="cred-input" type="text" placeholder="货币(默认 $)" bind:value={f.currency} />
-                    </div>
-                  {:else if kind === 'claude'}
-                    <input class="cred-input" type="password" placeholder="Claude accessToken(claudeAiOauth)" bind:value={f.accessToken} />
-                    <span class="hint">获取:电脑上 <code>claude login</code> 后,从 <code>~/.claude/.credentials.json</code> 复制 <code>claudeAiOauth.accessToken</code>(sk-ant-oat… 开头)。</span>
-                  {:else if kind === 'codex'}
-                    <input class="cred-input" type="password" placeholder="access_token" bind:value={f.accessToken} />
-                    <input class="cred-input" type="text" placeholder="account_id" bind:value={f.accountId} />
-                    <span class="hint">获取:电脑上 <code>codex login</code> 后,从 <code>~/.codex/auth.json</code> 复制 <code>tokens.access_token</code> 与 <code>tokens.account_id</code>。</span>
-                  {/if}
-                  <div class="cred-actions">
-                    <button class="cred-save" disabled={f.saving} onclick={() => onSaveCreds(cfg)}>
-                      {f.saving ? '保存中…' : '保存并刷新'}
-                    </button>
-                    {#if f.msg}
-                      <span class="cred-msg" style="color: {f.ok ? '#34C759' : '#FF6B6B'};">{f.msg}</span>
-                    {/if}
-                  </div>
-                </div>
-              {/if}
-            </div>
-          {/if}
         </div>
       {/each}
     </div>
@@ -752,34 +531,11 @@
   color: rgba(255, 255, 255, 0.58);
 }
 
-/* New-API 凭证录入 */
-.cred-section {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.cred-toggle {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.78);
-  padding: 0;
-}
-
 .cred-form {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-top: 8px;
-}
-
-.cred-row3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px;
 }
 
 .cred-input {
@@ -804,6 +560,7 @@
 .cred-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -826,25 +583,5 @@
 .cred-msg {
   font-size: 10px;
   font-weight: 500;
-}
-
-/* New-API 网页登录按钮 */
-.cred-login {
-  align-self: flex-start;
-  padding: 6px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: white;
-  background: #34C759;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.hint code {
-  font-size: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 0 3px;
-  border-radius: 3px;
 }
 </style>

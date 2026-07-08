@@ -6,7 +6,7 @@ import androidx.activity.enableEdgeToEdge
 
 class MainActivity : TauriActivity() {
   // Rust(usage_dashboard_lib)导出的初始化:把 Context 交给 ndk_context,
-  // 供命令层 JNI(添加小组件、网页登录)取 context。库由 TauriActivity 加载。
+  // 供命令层 JNI(添加小组件)取 context。库由 TauriActivity 加载。
   external fun nativeInit(context: Context)
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,5 +19,6 @@ class MainActivity : TauriActivity() {
   override fun onStop() {
     super.onStop()
     UsageWidgetProvider.refreshAll(this)
+    UsageDoubleWidgetProvider.refreshAll(this)
   }
 }

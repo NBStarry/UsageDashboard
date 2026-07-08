@@ -119,7 +119,7 @@ struct TokenUsageDashboardApp {
                 ]), fetchedAt: now)
             ),
             ServiceRuntime(
-                config: ServiceConfig(id: "codex", title: "GPT", accent: "#10A37F",
+                config: ServiceConfig(id: "codex", title: "Codex", accent: "#10A37F",
                                       category: .subscription, fetcher: .codexWham),
                 status: .ok(Usage(plan: "Plus", windows: [
                     UsageWindow(label: "5 小时", pct: 63, resetAt: now.addingTimeInterval(124 * 60)),
@@ -301,7 +301,7 @@ private struct ReadmeSettingsPreview: View {
 
                 serviceRow(title: "Claude", type: "订阅号", color: Color(hex: "#D97757"),
                            items: ["套餐", "5 小时", "周额度", "重置倒计时", "更新时间"])
-                serviceRow(title: "GPT", type: "订阅号", color: Color(hex: "#10A37F"),
+                serviceRow(title: "Codex", type: "订阅号", color: Color(hex: "#10A37F"),
                            items: ["套餐", "5 小时", "周额度", "更新时间"])
                 serviceRow(title: "PhanRouter", type: "API 用量", color: Color(hex: "#7C5CFC"),
                            items: ["当前余额", "历史消耗", "请求次数", "模型列表"])

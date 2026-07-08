@@ -58,29 +58,9 @@ export function setAlertCooldownMinutes(minutes: number): Promise<void> {
   return invoke('set_alert_cooldown_minutes', { minutes });
 }
 
-// commands.rs save_new_api_credentials(file_name, json)
-export function saveNewApiCredentials(fileName: string, json: string): Promise<void> {
-  return invoke('save_new_api_credentials', { fileName, json });
-}
-
-// commands.rs save_claude_credentials(access_token)
-export function saveClaudeCredentials(accessToken: string): Promise<void> {
-  return invoke('save_claude_credentials', { accessToken });
-}
-
-// commands.rs save_codex_credentials(access_token, account_id)
-export function saveCodexCredentials(accessToken: string, accountId: string): Promise<void> {
-  return invoke('save_codex_credentials', { accessToken, accountId });
-}
-
-// commands.rs set_proxy_url(url) — empty string clears the proxy
-export function setProxyUrl(url: string): Promise<void> {
-  return invoke('set_proxy_url', { url });
-}
-
-// commands.rs set_relay_config(url, secret, enabled)
-export function setRelayConfig(url: string, secret: string, enabled: boolean): Promise<void> {
-  return invoke('set_relay_config', { url, secret, enabled });
+// commands.rs set_relay_config(url, secret)
+export function setRelayConfig(url: string, secret: string): Promise<void> {
+  return invoke('set_relay_config', { url, secret, enabled: true });
 }
 
 // commands.rs request_pin_widget() — Android: prompt to pin the home-screen widget
@@ -88,10 +68,9 @@ export function requestPinWidget(): Promise<boolean> {
   return invoke('request_pin_widget');
 }
 
-// commands.rs login_new_api(base_url, credential_file) — Android: open gateway web
-// login; on success the native activity writes the credential file automatically.
-export function loginNewApi(baseUrl: string, credentialFile: string): Promise<void> {
-  return invoke('login_new_api', { baseUrl, credentialFile });
+// commands.rs request_pin_double_widget() — Android: prompt to pin the 2x2 home-screen widget
+export function requestPinDoubleWidget(): Promise<boolean> {
+  return invoke('request_pin_double_widget');
 }
 
 // commands.rs is_mobile() — true on Android/iOS, false on desktop.

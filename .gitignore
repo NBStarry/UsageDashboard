@@ -9,3 +9,6 @@
 *.d
 *.swiftdeps
 *.swiftdeps~
+
+# Android release/debug package copies for local handoff.
+release-apks/

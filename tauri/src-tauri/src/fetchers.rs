@@ -2,11 +2,16 @@
 // 纯解析函数(parse_*/infer_vendor/日期辅助)不打网络,可单测;
 // fetch_service 负责取凭证 + 调 http::get_json + 调对应 parse 函数。
 
+#[cfg(not(mobile))]
 use chrono::{DateTime, TimeZone, Utc};
+#[cfg(not(mobile))]
 use serde_json::Value;
 
+#[cfg(not(mobile))]
 use crate::credentials::{self, CodexCreds, NewApiCreds};
+#[cfg(not(mobile))]
 use crate::http;
+#[cfg(not(mobile))]
 use crate::models::{
     BalanceInfo, FetcherKind, ModelEntry, ServiceConfig, Usage, UsageWindow,
 };
@@ -14,6 +19,7 @@ use crate::models::{
 // ─── 解析辅助 ──────────────────────────────────────────────────
 
 // 容忍 number/string 的数值提取(对齐 Swift numeric(_:))。
+#[cfg(not(mobile))]
 fn numeric(v: &Value) -> Option<f64> {
     match v {
         Value::Number(n) => n.as_f64(),
@@ -23,6 +29,7 @@ fn numeric(v: &Value) -> Option<f64> {
 }
 
 // epoch(秒或毫秒) → DateTime。raw > 1e11 视为毫秒。
+#[cfg(not(mobile))]
 pub fn date_from_epoch(value: &Value) -> Option<DateTime<Utc>> {
     let raw = numeric(value)?;
     let secs = if raw > 1e11 { raw / 1000.0 } else { raw };
@@ -32,6 +39,7 @@ pub fn date_from_epoch(value: &Value) -> Option<DateTime<Utc>> {
 }
 
 // ISO8601 字符串 → DateTime(支持带/不带小数秒)。
+#[cfg(not(mobile))]
 pub fn date_from_iso(value: &Value) -> Option<DateTime<Utc>> {
     let s = value.as_str()?;
     DateTime::parse_from_rfc3339(s)
@@ -40,6 +48,7 @@ pub fn date_from_iso(value: &Value) -> Option<DateTime<Utc>> {
 }
 
 // 首字母大写(对齐 Swift capitalizedPlan)。空串/非字符串返回 None。
+#[cfg(not(mobile))]
 pub fn capitalized_plan(value: &Value) -> Option<String> {
     let s = value.as_str()?;
     if s.is_empty() {
@@ -51,12 +60,14 @@ pub fn capitalized_plan(value: &Value) -> Option<String> {
 }
 
 // pct 量化:(x*10).round()/10。
+#[cfg(not(mobile))]
 fn round_pct(x: f64) -> f64 {
     (x * 10.0).round() / 10.0
 }
 
 // ─── Claude ───────────────────────────────────────────────────
 
+#[cfg(not(mobile))]
 pub fn parse_claude(v: &Value, status: u16) -> Result<Usage, String> {
     let data = match v.as_object() {
         Some(_) => v,
@@ -103,6 +114,7 @@ pub fn parse_claude(v: &Value, status: u16) -> Result<Usage, String> {
 // ─── Codex / GPT ──────────────────────────────────────────────
 
 // 从 dict 中按 keys 顺序取第一个对象型子项。
+#[cfg(not(mobile))]
 fn pick_dict<'a>(d: &'a Value, keys: &[&str]) -> Option<&'a Value> {
     for k in keys {
         if let Some(v) = d.get(*k).filter(|x| x.is_object()) {
@@ -113,6 +125,7 @@ fn pick_dict<'a>(d: &'a Value, keys: &[&str]) -> Option<&'a Value> {
 }
 
 // percent_left / remaining_percent 表示"剩余",换算成"已用";否则取 used_percent。
+#[cfg(not(mobile))]
 fn used_pct(w: &Value) -> Option<f64> {
     for k in ["percent_left", "remaining_percent"] {
         if let Some(v) = w.get(k).and_then(numeric) {
@@ -122,6 +135,7 @@ fn used_pct(w: &Value) -> Option<f64> {
     w.get("used_percent").and_then(numeric)
 }
 
+#[cfg(not(mobile))]
 fn codex_reset_at(w: &Value) -> Option<DateTime<Utc>> {
     for k in ["reset_time_ms", "reset_at"] {
         if let Some(v) = w.get(k) {
@@ -140,6 +154,7 @@ fn codex_reset_at(w: &Value) -> Option<DateTime<Utc>> {
     None
 }
 
+#[cfg(not(mobile))]
 pub fn parse_codex(v: &Value, status: u16) -> Result<Usage, String> {
     let data = match v.as_object() {
         Some(_) => v,
@@ -214,6 +229,7 @@ pub fn parse_codex(v: &Value, status: u16) -> Result<Usage, String> {
 // ─── New-API 兼容网关 ──────────────────────────────────────────
 
 // 解析 /api/user/self,返回 (balance, used, request_count)。
+#[cfg(not(mobile))]
 pub fn parse_newapi_self(
     v: &Value,
     status: u16,
@@ -262,6 +278,7 @@ pub fn parse_newapi_self(
 
 // ─── 模型广场推断 ──────────────────────────────────────────────
 
+#[cfg(not(mobile))]
 pub fn parse_pricing(v: &Value) -> Vec<ModelEntry> {
     let list = match v.get("data").and_then(|d| d.as_array()) {
         Some(l) => l,
@@ -297,6 +314,7 @@ pub fn parse_pricing(v: &Value) -> Vec<ModelEntry> {
 }
 
 // 按模型名推断厂商(接口 vendor_id 缺失时的兜底)。
+#[cfg(not(mobile))]
 pub fn infer_vendor(model: &str) -> String {
     let n = model.to_lowercase();
     // PhanRouter 自有改名:前缀 PR-<字母>- 即厂商代码(注意 pr-ge 要在 pr-g 之前判断)。
@@ -391,6 +409,7 @@ pub async fn fetch_relay(
 
 // ─── 网络入口 ──────────────────────────────────────────────────
 
+#[cfg(not(mobile))]
 pub async fn fetch_service(cfg: &ServiceConfig) -> Result<Usage, String> {
     match cfg.fetcher {
         FetcherKind::ClaudeOauth => fetch_claude().await,
@@ -400,6 +419,7 @@ pub async fn fetch_service(cfg: &ServiceConfig) -> Result<Usage, String> {
     }
 }
 
+#[cfg(not(mobile))]
 async fn fetch_claude() -> Result<Usage, String> {
     let token = credentials::claude_token()
         .ok_or_else(|| "未找到 Claude 登录凭证,请运行 claude 登录".to_string())?;
@@ -414,6 +434,7 @@ async fn fetch_claude() -> Result<Usage, String> {
     parse_claude(&json, status)
 }
 
+#[cfg(not(mobile))]
 async fn fetch_codex() -> Result<Usage, String> {
     let creds = match credentials::codex_creds() {
         CodexCreds::Ok {
@@ -441,6 +462,7 @@ async fn fetch_codex() -> Result<Usage, String> {
     parse_codex(&json, status)
 }
 
+#[cfg(not(mobile))]
 async fn fetch_newapi(cfg: &ServiceConfig) -> Result<Usage, String> {
     let file_name = cfg
         .credential_file
