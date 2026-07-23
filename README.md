@@ -1,5 +1,20 @@
 # TokenDeck · AI 用量控制台
 
+<p align="center">
+  <a href="https://www.apple.com/macos/"><img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white"></a>
+  <a href="https://www.swift.org/"><img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white"></a>
+  <a href="https://v2.tauri.app/"><img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white"></a>
+  <a href="https://developer.android.com/about/versions/nougat"><img alt="Android 7+" src="https://img.shields.io/badge/Android-7%2B-3DDC84?logo=android&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <a href="#启动"><strong>▶ 快速开始</strong></a>
+  &nbsp;·&nbsp;
+  <a href="#界面"><strong>🖼️ 界面预览</strong></a>
+  &nbsp;·&nbsp;
+  <a href="tauri/README-android.md"><strong>📱 Android 构建</strong></a>
+</p>
+
 TokenDeck 把 **macOS 原生菜单栏看板**、**Windows 系统托盘客户端**和 **Android App / 主屏小组件**
 放在同一套工程中，统一查看 Claude、Codex 与 New-API 兼容渠道的订阅窗口、余额和历史消耗。
 
