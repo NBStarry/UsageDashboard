@@ -460,7 +460,7 @@ class UsageWidgetProvider : AppWidgetProvider() {
                 readTimeout = 12_000
                 useCaches = false
                 instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "TokenUsageDashboard/1.0")
+                setRequestProperty("User-Agent", "TokenDeck/1.0")
                 setRequestProperty("Accept-Encoding", "identity")
                 for ((k, v) in headers) setRequestProperty(k, v)
             }

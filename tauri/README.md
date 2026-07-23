@@ -1,4 +1,4 @@
-# UsageDashboard — Windows (Tauri)
+# TokenDeck — Windows (Tauri)
 
 Windows system-tray app for monitoring Claude, GPT, and New-API subscription/API usage.
 Built with Tauri 2 + SvelteKit + Rust backend. Mirrors the macOS Swift version in functionality.
@@ -25,7 +25,7 @@ npm run tauri build
 Produces an NSIS installer at:
 
 ```
-src-tauri\target\release\bundle\nsis\UsageDashboard_1.0.0_x64-setup.exe
+src-tauri\target\release\bundle\nsis\TokenDeck_1.0.0_x64-setup.exe
 ```
 
 If Cargo fails to download dependencies due to SSL certificate revocation checks (corporate proxies / Windows Defender), prefix the command:
@@ -108,7 +108,7 @@ To add a New-API gateway, append a service entry to `config.json` and create the
 | New-API creds | `~/.config/usage-bar/<file>.json` | `%APPDATA%\usage-bar\<file>.json` |
 | Auto-start | `SMAppService` (macOS Login Items) | `tauri-plugin-autostart` (Windows registry) |
 | Notifications | macOS `UNUserNotificationCenter` | `tauri-plugin-notification` (Windows toast) |
-| Build output | `TokenUsageDashboard.app` | NSIS installer `.exe` |
+| Build output | `TokenDeck.app` | NSIS installer `.exe` |
 
 Functional parity: same three-counter fetch logic, same alert rules (`usageExceedsElapsedWindowPercent` / `usageExceedsThresholdOnly`), same tray red-dot on alert, same settings panel for toggling/reordering service cards.
 

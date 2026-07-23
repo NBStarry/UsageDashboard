@@ -3,7 +3,7 @@ import SwiftUI
 import UserNotifications
 
 @main
-struct TokenUsageDashboardApp {
+struct TokenDeckApp {
     @MainActor
     static func main() {
         // 隐藏 CLI 模式:--fetch <claude|codex>,跑一次取数并打印 JSON 后退出。

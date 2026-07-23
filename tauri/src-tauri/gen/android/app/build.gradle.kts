@@ -120,7 +120,7 @@ val collectAndroidArtifacts = tasks.register("collectAndroidArtifacts") {
         androidLatestArtifactDir.mkdirs()
 
         val manifest = buildString {
-            appendLine("UsageDashboard Android artifacts")
+            appendLine("TokenDeck Android artifacts")
             appendLine("Created: ${LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)}")
             appendLine("Archive: ${androidArtifactDir.absolutePath}")
             appendLine()

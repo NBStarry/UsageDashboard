@@ -1,4 +1,4 @@
-# UsageDashboard — Android (Tauri mobile)
+# TokenDeck — Android (Tauri mobile)
 
 Android 端基于 Tauri 2 移动端，复用 `tauri/` 下的 Svelte 前端 + Rust 后端。
 桌面专属代码（托盘 / autostart / popover 窗口）已用 `#[cfg(desktop)]` 隔离，
@@ -142,7 +142,7 @@ npx tauri android build        # 其余环境变量同上
   ```bash
   keytool -genkeypair -v -keystore upload-keystore.jks -alias upload \
     -keyalg RSA -keysize 2048 -validity 10000 \
-    -storepass <PW> -keypass <PW> -dname "CN=UsageDashboard, O=UsageDashboard, C=CN"
+    -storepass <PW> -keypass <PW> -dname "CN=TokenDeck, O=TokenDeck, C=CN"
   ```
 - **ProGuard**：release 开了 `isMinifyEnabled`。`app/proguard-rules.pro` 必须 keep 住
   `app.usagedashboard.**` 和 native 方法名——否则混淆会改掉 `MainActivity`/`nativeInit`，

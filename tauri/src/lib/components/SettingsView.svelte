@@ -178,7 +178,7 @@
             <span class="cred-msg" style="color: rgba(255,255,255,0.7);">{widgetMsg}</span>
           {/if}
         </div>
-        <span class="hint">把用量小组件固定到桌面;也可长按桌面→微件→UsageDashboard 手动添加。</span>
+        <span class="hint">把用量小组件固定到桌面;也可长按桌面→微件→TokenDeck 手动添加。</span>
       </div>
     {/if}
 

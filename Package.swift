@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "TokenUsageDashboard",
+    name: "TokenDeck",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "TokenUsageDashboard",
+            name: "TokenDeck",
             path: "Sources/UsageBar",
             swiftSettings: [
                 .unsafeFlags(["-parse-as-library"])

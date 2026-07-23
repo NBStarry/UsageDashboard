@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "UsageDashboard",
+  "productName": "TokenDeck",
   "version": "1.0.0",
   "identifier": "app.usagedashboard",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "UsageDashboard",
+        "title": "TokenDeck",
         "width": 360,
         "height": 600,
         "decorations": false,
@@ -40,6 +40,6 @@
       "icons/tray-alert.png"
     ],
     "publisher": "Starry Bei",
-    "shortDescription": "System tray app for monitoring Claude, GPT, and New-API usage on Windows"
+    "shortDescription": "TokenDeck system tray app for monitoring Claude, Codex, and New-API usage"
   }
 }
